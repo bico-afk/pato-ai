@@ -1,8 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+
+const HeatmapClient = dynamic(() => import('./HeatmapClient'), {
+  ssr: false,
+  loading: () => (
+    <div style={{ height: 100, borderRadius: 16, background: '#111', border: '1px solid #1e1e1e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontSize: 12, color: '#444' }}>🌡️ Carregando mapa de calor…</span>
+    </div>
+  ),
+})
 
 /* ─── Types ──────────────────────────────────────────────── */
 interface Post {
@@ -440,6 +450,11 @@ export default function BuscaPage() {
               </div>
             </div>
           )}
+
+          {/* Mapa de Calor */}
+          <div style={{ padding: '20px 16px 0' }}>
+            <HeatmapClient />
+          </div>
 
           {/* Categorias */}
           <div style={{ padding: '24px 16px 0' }}>
