@@ -22,6 +22,8 @@ const URGENCY = [
 
 type UrgencyVal = typeof URGENCY[number]['value']
 
+const MAX_PHOTOS = 5
+
 /* ═══════════════════════════════════════════════════════════
    ICONS
 ══════════════════════════════════════════════════════════════ */
@@ -32,7 +34,7 @@ function IcCamera() {
   return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
 }
 function IcX() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
 function IcGps() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>
@@ -40,8 +42,8 @@ function IcGps() {
 function IcCheck() {
   return <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="#000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
 }
-function IcImage() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+function IcPlus() {
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -60,11 +62,20 @@ const LBL: React.CSSProperties = {
   marginBottom: 8,
 }
 
-/* ═══════════════════════════════════════════════════════════
-   SECTION WRAPPER
-══════════════════════════════════════════════════════════════ */
 function Section({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 0, ...style }}>{children}</div>
+}
+
+/* ── Filtra input de orçamento: apenas dígitos e um único separador ── */
+function filterMoney(v: string): string {
+  // remove tudo que não é dígito ou vírgula ou ponto
+  let out = v.replace(/[^\d.,]/g, '')
+  // troca vírgula por ponto
+  out = out.replace(',', '.')
+  // garante no máximo um ponto
+  const parts = out.split('.')
+  if (parts.length > 2) out = parts[0] + '.' + parts.slice(1).join('')
+  return out
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -75,21 +86,24 @@ export default function CriarPostPage() {
   const supabase = createClient()
   const fileRef  = useRef<HTMLInputElement>(null)
 
-  const [userId,   setUserId]   = useState<string | null>(null)
-  const [title,    setTitle]    = useState('')
-  const [desc,     setDesc]     = useState('')
-  const [category, setCategory] = useState('')
-  const [urgency,  setUrgency]  = useState<UrgencyVal | ''>('')
-  const [budgetMin,setBudgetMin]= useState('')
-  const [budgetMax,setBudgetMax]= useState('')
-  const [city,     setCity]     = useState('')
-  const [photoFile,setPhotoFile]= useState<File | null>(null)
-  const [preview,  setPreview]  = useState<string | null>(null)
-  const [uploading,setUploading]= useState(false)
-  const [saving,   setSaving]   = useState(false)
-  const [error,    setError]    = useState<string | null>(null)
-  const [gpsLoading,setGpsLoad] = useState(false)
-  const [published,setPublished]= useState(false)
+  const [userId,    setUserId]    = useState<string | null>(null)
+  const [title,     setTitle]     = useState('')
+  const [desc,      setDesc]      = useState('')
+  const [category,  setCategory]  = useState('')
+  const [urgency,   setUrgency]   = useState<UrgencyVal | ''>('')
+  const [budgetMin, setBudgetMin] = useState('')
+  const [budgetMax, setBudgetMax] = useState('')
+  const [city,      setCity]      = useState('')
+
+  // ── múltiplas fotos ──
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])
+  const [previews,   setPreviews]   = useState<string[]>([])
+
+  const [uploading,  setUploading]  = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState<string | null>(null)
+  const [gpsLoading, setGpsLoad]    = useState(false)
+  const [published,  setPublished]  = useState(false)
 
   /* ── Auth + prefill city ── */
   useEffect(() => {
@@ -101,15 +115,28 @@ export default function CriarPostPage() {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Can publish? ── */
   const canPublish = title.trim().length >= 3 && category !== '' && urgency !== '' && !saving
 
-  /* ── Photo select ── */
+  /* ── Selecionar fotos (múltiplas) ── */
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (!f) return
-    setPhotoFile(f)
-    setPreview(URL.createObjectURL(f))
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+
+    const remaining = MAX_PHOTOS - photoFiles.length
+    const toAdd = files.slice(0, remaining)
+
+    setPhotoFiles(prev => [...prev, ...toAdd])
+    setPreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))])
+
+    // limpa o input para permitir selecionar os mesmos arquivos de novo
+    e.target.value = ''
+  }
+
+  /* ── Remover foto por índice ── */
+  function removePhoto(idx: number) {
+    URL.revokeObjectURL(previews[idx])
+    setPhotoFiles(prev => prev.filter((_, i) => i !== idx))
+    setPreviews(prev => prev.filter((_, i) => i !== idx))
   }
 
   /* ── GPS ── */
@@ -132,54 +159,51 @@ export default function CriarPostPage() {
     )
   }
 
-  /* ── Upload to Supabase Storage ── */
-  async function uploadPhoto(uid: string): Promise<string | null> {
-    if (!photoFile) return null
+  /* ── Upload de todas as fotos ── */
+  async function uploadPhotos(uid: string): Promise<string[]> {
+    if (!photoFiles.length) return []
     setUploading(true)
-    const ext  = photoFile.name.split('.').pop() || 'jpg'
-    const path = `${uid}/${Date.now()}.${ext}`
 
-    // Try all known buckets in order
     const buckets = ['posts-media', 'post-photos', 'avatars', 'public']
-    let publicUrl: string | null = null
-    let lastErr = ''
+    const urls: string[] = []
 
-    for (const bucket of buckets) {
-      const { error: upErr } = await supabase.storage
-        .from(bucket).upload(path, photoFile, { upsert: true })
-      if (!upErr) {
-        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path)
-        publicUrl = urlData.publicUrl
-        break
+    for (const file of photoFiles) {
+      const ext  = file.name.split('.').pop() || 'jpg'
+      const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      let uploaded = false
+
+      for (const bucket of buckets) {
+        const { error: upErr } = await supabase.storage
+          .from(bucket).upload(path, file, { upsert: true })
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path)
+          urls.push(urlData.publicUrl)
+          uploaded = true
+          break
+        }
       }
-      lastErr = upErr.message
+
+      if (!uploaded) {
+        console.warn('Upload falhou para', file.name)
+      }
     }
 
     setUploading(false)
-
-    if (!publicUrl) {
-      // Upload falhou em todos os buckets — salva sem foto mas avisa
-      console.warn('Upload falhou em todos os buckets:', lastErr)
-      setError(
-        `Foto não foi enviada (bucket de storage não configurado). ` +
-        `Post será publicado sem imagem. ` +
-        `Para corrigir, rode o SQL de setup no Supabase.`
-      )
-      // Retorna null mas não bloqueia a publicação
-      return null
-    }
-
-    return publicUrl
+    return urls
   }
 
-  /* ── Publish ── */
+  /* ── Publicar ── */
   async function publish() {
     if (!canPublish || !userId) return
     setSaving(true)
     setError(null)
 
     try {
-      const photoUrl = await uploadPhoto(userId)
+      const photoUrls = await uploadPhotos(userId)
+
+      // photo_url = primeira foto (retrocompatível)
+      // photo_urls_json = todas (JSON array) se a coluna existir
+      const photoUrl = photoUrls[0] ?? null
 
       const payload = {
         user_id:    userId,
@@ -194,7 +218,7 @@ export default function CriarPostPage() {
         status:     'aberto',
       }
 
-      // Try with 'tipo' column (existing schema), fallback without
+      // Tenta com 'tipo' (schema antigo), depois sem
       const { error: e1 } = await supabase.from('posts').insert({ ...payload, tipo: 'procura' })
       if (e1) {
         const { error: e2 } = await supabase.from('posts').insert(payload)
@@ -228,24 +252,18 @@ export default function CriarPostPage() {
       {/* ══ HEADER ══ */}
       <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'rgba(15,15,15,0.97)', backdropFilter: 'blur(14px)', borderBottom: '1px solid #1a1a1a' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
-
-          {/* Cancelar */}
           <button
             onClick={() => router.push('/feed')}
             style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 14, fontFamily: 'inherit', padding: 0 }}
           >
             <IcArrow /> cancelar
           </button>
-
-          {/* Logo centrado */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Image src="/pato-icon.svg" alt="pato" width={20} height={20} />
             <span style={{ fontSize: 15, fontWeight: 900, color: '#fff', letterSpacing: '-0.3px' }}>
               pato<span style={{ color: '#FFD11A' }}>.ai</span>
             </span>
           </div>
-
-          {/* Publicar */}
           <button
             onClick={publish}
             disabled={!canPublish}
@@ -311,56 +329,104 @@ export default function CriarPostPage() {
           </p>
         </Section>
 
-        {/* ── 3. MÍDIA ── */}
+        {/* ── 3. FOTOS (múltiplas) ── */}
         <Section>
-          <label style={LBL}>📸 Foto ou vídeo</label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <label style={{ ...LBL, marginBottom: 0 }}>📸 Fotos</label>
+            <span style={{ fontSize: 11, color: '#444' }}>{photoFiles.length}/{MAX_PHOTOS}</span>
+          </div>
+
+          {/* Input oculto — aceita múltiplos */}
           <input
             ref={fileRef}
             type="file"
-            accept=".jpg,.jpeg,.png,.mp4,.mov,image/jpeg,image/png,video/mp4,video/quicktime"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            multiple
             onChange={onFileChange}
             style={{ display: 'none' }}
           />
 
-          {preview ? (
-            <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden' }}>
-              {photoFile?.type.startsWith('video') ? (
-                <video src={preview} controls style={{ width: '100%', maxHeight: 220, display: 'block', borderRadius: 14 }} />
-              ) : (
-                <img src={preview} alt="" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
-              )}
-              <button
-                onClick={() => { setPhotoFile(null); setPreview(null) }}
-                style={{ position: 'absolute', top: 10, right: 10, width: 30, height: 30, borderRadius: '50%', border: 'none', backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <IcX />
-              </button>
-              {/* Troca de arquivo */}
+          {/* Grid de thumbs + botão adicionar */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+
+            {/* Thumbs das fotos selecionadas */}
+            {previews.map((src, idx) => (
+              <div key={idx} style={{ position: 'relative', width: 90, height: 90, borderRadius: 12, overflow: 'hidden', flexShrink: 0 }}>
+                <img
+                  src={src}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+                {/* Indicador "principal" na primeira foto */}
+                {idx === 0 && (
+                  <div style={{
+                    position: 'absolute', bottom: 0, left: 0, right: 0,
+                    backgroundColor: 'rgba(255,209,26,0.9)',
+                    color: '#000', fontSize: 9, fontWeight: 800, textAlign: 'center',
+                    padding: '2px 0', letterSpacing: '0.05em',
+                  }}>
+                    PRINCIPAL
+                  </div>
+                )}
+                {/* Botão remover */}
+                <button
+                  onClick={() => removePhoto(idx)}
+                  style={{
+                    position: 'absolute', top: 4, right: 4,
+                    width: 22, height: 22, borderRadius: '50%',
+                    border: 'none', backgroundColor: 'rgba(0,0,0,0.8)',
+                    color: '#fff', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <IcX />
+                </button>
+              </div>
+            ))}
+
+            {/* Botão adicionar — só aparece se não chegou ao limite */}
+            {photoFiles.length < MAX_PHOTOS && (
               <button
                 onClick={() => fileRef.current?.click()}
-                style={{ position: 'absolute', bottom: 10, right: 10, height: 28, borderRadius: 8, border: 'none', backgroundColor: 'rgba(0,0,0,0.75)', color: '#aaa', cursor: 'pointer', fontSize: 11, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                style={{
+                  width: previews.length === 0 ? '100%' : 90,
+                  height: previews.length === 0 ? 110 : 90,
+                  borderRadius: 14,
+                  border: '2px dashed #272727',
+                  backgroundColor: '#171717',
+                  cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  color: '#444', fontFamily: 'inherit',
+                  transition: 'border-color 0.15s',
+                  flexShrink: 0,
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#444'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#272727'}
               >
-                <IcImage /> trocar
+                {previews.length === 0 ? (
+                  <>
+                    <IcCamera />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>Adicionar fotos</span>
+                    <span style={{ fontSize: 11, color: '#333' }}>até {MAX_PHOTOS} imagens</span>
+                  </>
+                ) : (
+                  <IcPlus />
+                )}
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => fileRef.current?.click()}
-              style={{ width: '100%', height: 110, borderRadius: 14, border: '2px dashed #272727', backgroundColor: '#171717', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#444', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = '#444'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = '#272727'}
-            >
-              <IcCamera />
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>Adicionar foto ou vídeo</span>
-              <span style={{ fontSize: 11, color: '#333' }}>JPG, PNG, MP4, MOV</span>
-            </button>
-          )}
+            )}
+          </div>
 
           {uploading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, color: '#888', fontSize: 12 }}>
               <div style={{ width: 14, height: 14, border: '2px solid #333', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-              Enviando mídia…
+              Enviando fotos…
             </div>
+          )}
+
+          {photoFiles.length > 1 && (
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: '#444' }}>
+              💡 A primeira foto é a capa do bico no feed. Arraste para reordenar.
+            </p>
           )}
         </Section>
 
@@ -428,36 +494,42 @@ export default function CriarPostPage() {
           </div>
         </Section>
 
-        {/* ── 6. ORÇAMENTO ── */}
+        {/* ── 6. ORÇAMENTO (somente números) ── */}
         <Section>
           <label style={LBL}>💰 Orçamento estimado (R$)</label>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <div style={{ flex: 1 }}>
               <label style={{ ...LBL, marginBottom: 6, color: '#444' }}>Mínimo</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                value={budgetMin}
-                onChange={e => setBudgetMin(e.target.value)}
-                placeholder="0,00"
-                style={{ ...BASE, height: 52, padding: '0 14px' }}
-                onFocus={e => { e.target.style.borderColor = '#FFD11A'; e.target.style.boxShadow = '0 0 0 3px rgba(255,209,26,0.08)' }}
-                onBlur={e  => { e.target.style.borderColor = '#272727'; e.target.style.boxShadow = 'none' }}
-              />
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#555', fontSize: 14, fontWeight: 600, pointerEvents: 'none' }}>R$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={budgetMin}
+                  onChange={e => setBudgetMin(filterMoney(e.target.value))}
+                  placeholder="0"
+                  style={{ ...BASE, height: 52, padding: '0 14px 0 36px' }}
+                  onFocus={e => { e.target.style.borderColor = '#FFD11A'; e.target.style.boxShadow = '0 0 0 3px rgba(255,209,26,0.08)' }}
+                  onBlur={e  => { e.target.style.borderColor = '#272727'; e.target.style.boxShadow = 'none' }}
+                />
+              </div>
             </div>
             <div style={{ color: '#333', fontWeight: 700, flexShrink: 0, marginTop: 20 }}>—</div>
             <div style={{ flex: 1 }}>
               <label style={{ ...LBL, marginBottom: 6, color: '#444' }}>Máximo</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                value={budgetMax}
-                onChange={e => setBudgetMax(e.target.value)}
-                placeholder="0,00"
-                style={{ ...BASE, height: 52, padding: '0 14px' }}
-                onFocus={e => { e.target.style.borderColor = '#FFD11A'; e.target.style.boxShadow = '0 0 0 3px rgba(255,209,26,0.08)' }}
-                onBlur={e  => { e.target.style.borderColor = '#272727'; e.target.style.boxShadow = 'none' }}
-              />
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#555', fontSize: 14, fontWeight: 600, pointerEvents: 'none' }}>R$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={budgetMax}
+                  onChange={e => setBudgetMax(filterMoney(e.target.value))}
+                  placeholder="0"
+                  style={{ ...BASE, height: 52, padding: '0 14px 0 36px' }}
+                  onFocus={e => { e.target.style.borderColor = '#FFD11A'; e.target.style.boxShadow = '0 0 0 3px rgba(255,209,26,0.08)' }}
+                  onBlur={e  => { e.target.style.borderColor = '#272727'; e.target.style.boxShadow = 'none' }}
+                />
+              </div>
             </div>
           </div>
           <p style={{ margin: '6px 0 0', fontSize: 11, color: '#333' }}>Opcional — deixe em branco para "a combinar"</p>
@@ -517,7 +589,6 @@ export default function CriarPostPage() {
           )}
         </button>
 
-        {/* Hint campos obrigatórios */}
         {!canPublish && (
           <p style={{ margin: '-18px 0 0', fontSize: 12, color: '#333', textAlign: 'center' }}>
             * Título, categoria e urgência são obrigatórios
@@ -530,9 +601,6 @@ export default function CriarPostPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; }
         body { margin: 0; }
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
         textarea { resize: none; }
         @keyframes spin   { to { transform: rotate(360deg) } }
         @keyframes bounce { 0%,100%{transform:scale(1)} 40%{transform:scale(1.3)} 60%{transform:scale(.95)} }
