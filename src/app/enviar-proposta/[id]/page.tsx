@@ -131,7 +131,7 @@ export default function EnviarPropostaPage() {
     : tipo === 'visita' ? parseFloat(valor.replace(',', '.') || '0')
     : 0
 
-  const canSend = tipo !== '' && mensagem.trim().length >= 10 && (
+  const canSend = tipo !== '' && (
     tipo === 'visita' ? true :
     tipo === 'fixo'   ? valor.trim() !== '' :
     tipo === 'hora'   ? horasPH.trim() !== '' && horas.trim() !== '' : false
@@ -540,9 +540,9 @@ export default function EnviarPropostaPage() {
           <div>
             <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 800, color: '#FFD11A', letterSpacing: '0.1em', textTransform: 'uppercase' }}>MENSAGEM</p>
             <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: '#fff' }}>
-              Mensagem para o contratante *
+              Mensagem para o contratante
             </h3>
-            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555' }}>Apresente-se e diga como vai resolver o problema</p>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555' }}>Opcional — apresente-se e explique como vai resolver o problema</p>
             <textarea
               value={mensagem}
               onChange={e => setMensagem(e.target.value.slice(0, 500))}
