@@ -132,9 +132,11 @@ export default function FeedPage() {
   const [urgentCount,setUrgentCount]= useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [newBanner,  setNewBanner]  = useState(false) // "novos posts disponíveis"
+  const [catFilter,  setCatFilter]  = useState('')    // '' = todos
 
   const offsetRef   = useRef(0)
   const tabRef      = useRef<Tab>('voce')
+  const catRef      = useRef('')
   const profileRef  = useRef<Profile | null>(null)
   const userIdRef   = useRef<string | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -142,7 +144,7 @@ export default function FeedPage() {
   const scrollRef   = useRef<HTMLDivElement>(null)
 
   /* ── Build query ── */
-  const buildQuery = useCallback((currentTab: Tab, prof: Profile | null, from: number, to: number) => {
+  const buildQuery = useCallback((currentTab: Tab, prof: Profile | null, from: number, to: number, cat?: string) => {
     let q = supabase
       .from('posts')
       .select('id,user_id,title,description,category,city,state,budget_min,budget_max,urgency,photo_url,status,created_at,profiles(id,full_name,avatar_url,city,state,seal),candidaturas(id,status),curtidas(id,user_id),comentarios(id)')
@@ -152,6 +154,8 @@ export default function FeedPage() {
 
     if (currentTab === 'urgentes') q = q.eq('urgency', 'hoje')
     if (currentTab === 'bairro' && prof?.city) q = q.ilike('city', `%${prof.city}%`)
+    const activeCat = cat !== undefined ? cat : catRef.current
+    if (activeCat) q = q.eq('category', activeCat)
     return q
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -246,6 +250,14 @@ export default function FeedPage() {
     const prof = profileRef.current
     if (uid && !loading) loadFeed(uid, tab, prof)
   }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Category filter change ── */
+  useEffect(() => {
+    catRef.current = catFilter
+    const uid  = userIdRef.current
+    const prof = profileRef.current
+    if (uid && !loading) loadFeed(uid, tabRef.current, prof)
+  }, [catFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Realtime: new posts ── */
   useEffect(() => {
@@ -587,6 +599,32 @@ export default function FeedPage() {
             </button>
           ))}
         </div>
+
+        {/* ── Filtro de categoria ── */}
+        <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', padding: '8px 12px', gap: 7, borderTop: '1px solid #161616' }}>
+          {['Todos', 'Elétrica', 'Encanamento', 'Limpeza', 'Reformas', 'Pintura', 'Montagem', 'Mudança', 'Jardim', 'Informática', 'Aulas', 'Beleza', 'Pets', 'Design', 'Culinária', 'Outros'].map(cat => {
+            const val = cat === 'Todos' ? '' : cat
+            const sel = catFilter === val
+            return (
+              <button
+                key={cat}
+                onClick={() => setCatFilter(sel && cat !== 'Todos' ? '' : val)}
+                style={{
+                  flexShrink: 0, whiteSpace: 'nowrap',
+                  height: 30, padding: '0 13px', borderRadius: 20,
+                  border: sel ? 'none' : '1px solid #242424',
+                  backgroundColor: sel ? '#FFD11A' : '#141414',
+                  color: sel ? '#0F0F0F' : '#666',
+                  fontSize: 12, fontWeight: sel ? 800 : 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {cat}
+              </button>
+            )
+          })}
+        </div>
       </header>
 
       {/* ══ BANNER: novos posts ══ */}
@@ -598,7 +636,7 @@ export default function FeedPage() {
             if (uid) { setLoading(true); await loadFeed(uid, tabRef.current, prof); setLoading(false) }
             scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
           }}
-          style={{ position: 'fixed', top: 106, left: '50%', transform: 'translateX(-50%)', zIndex: 90, backgroundColor: '#FFD11A', color: '#0F0F0F', borderRadius: 20, padding: '8px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(255,209,26,0.4)', animation: 'slideDown 0.3s ease', display: 'flex', alignItems: 'center', gap: 6 }}
+          style={{ position: 'fixed', top: 164, left: '50%', transform: 'translateX(-50%)', zIndex: 90, backgroundColor: '#FFD11A', color: '#0F0F0F', borderRadius: 20, padding: '8px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(255,209,26,0.4)', animation: 'slideDown 0.3s ease', display: 'flex', alignItems: 'center', gap: 6 }}
         >
           ↑ Novos bicos disponíveis
         </div>
@@ -607,7 +645,7 @@ export default function FeedPage() {
       {/* ══ SCROLL CONTAINER ══ */}
       <div
         ref={scrollRef}
-        style={{ paddingTop: 112, paddingBottom: NAV_H + 16 }}
+        style={{ paddingTop: 160, paddingBottom: NAV_H + 16 }}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
