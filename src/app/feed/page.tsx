@@ -66,6 +66,12 @@ function IcDots()     { return <svg width="18" height="18" viewBox="0 0 24 24" f
 function IcTrash()    { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> }
 function IcBolt()     { return <svg width="14" height="14" viewBox="0 0 24 24" fill="#888"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> }
 
+/* ─── Conta fotos armazenadas no campo photo_url ─── */
+function photoCount(photoUrl: string | null): number {
+  if (!photoUrl) return 0
+  try { const a = JSON.parse(photoUrl); return Array.isArray(a) ? a.length : 1 } catch { return 1 }
+}
+
 /* ─── Avatar ─── */
 function Avatar({ src, name, size = 38 }: { src?: string | null; name?: string | null; size?: number }) {
   if (src) return <img src={src} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
@@ -409,13 +415,6 @@ export default function FeedPage() {
           ver post completo →
         </button>
 
-        {/* ─ Foto ─ */}
-        {p.photo_url && (
-          <div style={{ margin: '0 0 10px', borderRadius: 12, overflow: 'hidden', cursor: 'pointer' }} onClick={() => router.push(`/post/${p.id}`)}>
-            <img src={p.photo_url} alt="" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
-          </div>
-        )}
-
         {/* ─ Info badges ─ */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           {(p.budget_min || p.budget_max) && (
@@ -429,6 +428,14 @@ export default function FeedPage() {
               👥 {props} proposta{props > 1 ? 's' : ''}
             </span>
           )}
+          {p.photo_url && (() => { const n = photoCount(p.photo_url); return (
+            <span
+              onClick={() => router.push(`/post/${p.id}`)}
+              style={{ fontSize: 12, fontWeight: 600, color: '#888', backgroundColor: '#1e1e1e', borderRadius: 20, padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              📷 {n} foto{n > 1 ? 's' : ''}
+            </span>
+          )})()}
           {isClosed && (
             <span style={{ fontSize: 12, fontWeight: 700, color: '#22C55E', backgroundColor: '#0d2a0d', borderRadius: 20, padding: '4px 10px' }}>
               🔒 fechado
