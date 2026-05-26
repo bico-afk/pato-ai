@@ -39,6 +39,28 @@ const inputBase: React.CSSProperties = {
   transition: 'border-color 0.15s',
 }
 
+/* ── Error translation ──────────────────────────────────────── */
+function translateError(msg: string): string {
+  const m = msg.toLowerCase()
+  if (m.includes('security purposes') || m.includes('after') || m.includes('rate') || m.includes('wait'))
+    return 'Aguarde alguns segundos antes de tentar novamente.'
+  if (m.includes('invalid login') || m.includes('invalid email') || m.includes('invalid otp') || m.includes('invalid token'))
+    return 'Email ou código inválido.'
+  if (m.includes('expired'))
+    return 'Link expirado. Solicite um novo.'
+  if (m.includes('already registered') || m.includes('already exists'))
+    return 'Esse email já está cadastrado.'
+  if (m.includes('email not confirmed'))
+    return 'Email ainda não confirmado. Verifique sua caixa de entrada.'
+  if (m.includes('phone') && m.includes('invalid'))
+    return 'Número de telefone inválido.'
+  if (m.includes('sms') || m.includes('otp'))
+    return 'Erro ao enviar SMS. Verifique o número e tente novamente.'
+  if (m.includes('network') || m.includes('fetch'))
+    return 'Erro de conexão. Verifique sua internet.'
+  return 'Erro ao entrar. Tente novamente.'
+}
+
 export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -83,7 +105,7 @@ export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
       setEmailStep('sent')
       startCountdown()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao enviar. Tente novamente.')
+      setError(e instanceof Error ? translateError(e.message) : 'Erro ao enviar. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -98,7 +120,7 @@ export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
       if (sbError) throw sbError
       router.push(`/auth/verify?phone=${encodeURIComponent(full)}&next=${encodeURIComponent(redirectTo)}`)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao enviar SMS. Tente novamente.')
+      setError(e instanceof Error ? translateError(e.message) : 'Erro ao enviar SMS. Tente novamente.')
     } finally {
       setLoading(false)
     }
