@@ -38,8 +38,15 @@ create table users (
 );
 
 alter table users enable row level security;
-create policy "users_own" on users
-  for all using (auth.uid() = auth_id);
+
+create policy "users_select" on users
+  for select using (auth.uid() = auth_id);
+create policy "users_insert" on users
+  for insert with check (auth.uid() = auth_id);
+create policy "users_update" on users
+  for update using (auth.uid() = auth_id);
+create policy "users_delete" on users
+  for delete using (auth.uid() = auth_id);
 
 -- ── TABELA: professional_profiles ──────────────────────────────
 create table professional_profiles (
@@ -68,10 +75,15 @@ create index idx_professional_location on professional_profiles using gist(locat
 create index idx_professional_skills on professional_profiles using gin(skills);
 
 alter table professional_profiles enable row level security;
-create policy "professional_profiles_read" on professional_profiles
+
+create policy "pp_select" on professional_profiles
   for select using (true);
-create policy "professional_profiles_write" on professional_profiles
-  for all using (auth.uid() = (select auth_id from users where id = user_id));
+create policy "pp_insert" on professional_profiles
+  for insert with check (auth.uid() = (select auth_id from users where id = user_id));
+create policy "pp_update" on professional_profiles
+  for update using (auth.uid() = (select auth_id from users where id = user_id));
+create policy "pp_delete" on professional_profiles
+  for delete using (auth.uid() = (select auth_id from users where id = user_id));
 
 -- ── TABELA: demands ─────────────────────────────────────────────
 create table demands (
@@ -103,10 +115,15 @@ create index idx_demands_search on demands
   using gin(to_tsvector('portuguese', title || ' ' || description));
 
 alter table demands enable row level security;
-create policy "demands_read" on demands
+
+create policy "demands_select" on demands
   for select using (true);
-create policy "demands_write" on demands
-  for all using (auth.uid() = (select auth_id from users where id = user_id));
+create policy "demands_insert" on demands
+  for insert with check (auth.uid() = (select auth_id from users where id = user_id));
+create policy "demands_update" on demands
+  for update using (auth.uid() = (select auth_id from users where id = user_id));
+create policy "demands_delete" on demands
+  for delete using (auth.uid() = (select auth_id from users where id = user_id));
 
 -- ── TABELA: applications ────────────────────────────────────────
 create table applications (
@@ -139,11 +156,21 @@ create index idx_chats_client on chats(client_id);
 create index idx_chats_professional on chats(professional_id);
 
 alter table chats enable row level security;
-create policy "chats_participants" on chats
-  for all using (
+
+create policy "chats_select" on chats
+  for select using (
     auth.uid() = (select auth_id from users where id = client_id)
-    or
-    auth.uid() = (select auth_id from users where id = professional_id)
+    or auth.uid() = (select auth_id from users where id = professional_id)
+  );
+create policy "chats_insert" on chats
+  for insert with check (
+    auth.uid() = (select auth_id from users where id = client_id)
+    or auth.uid() = (select auth_id from users where id = professional_id)
+  );
+create policy "chats_update" on chats
+  for update using (
+    auth.uid() = (select auth_id from users where id = client_id)
+    or auth.uid() = (select auth_id from users where id = professional_id)
   );
 
 -- ── TABELA: messages ────────────────────────────────────────────
@@ -162,14 +189,25 @@ create index idx_messages_chat on messages(chat_id);
 create index idx_messages_created on messages(created_at asc);
 
 alter table messages enable row level security;
-create policy "messages_participants" on messages
-  for all using (
+
+create policy "messages_select" on messages
+  for select using (
     auth.uid() in (
       select u.auth_id from users u
       join chats c on c.client_id = u.id or c.professional_id = u.id
       where c.id = chat_id
     )
   );
+create policy "messages_insert" on messages
+  for insert with check (
+    auth.uid() in (
+      select u.auth_id from users u
+      join chats c on c.client_id = u.id or c.professional_id = u.id
+      where c.id = chat_id
+    )
+  );
+create policy "messages_update" on messages
+  for update using (auth.uid() = (select auth_id from users where id = sender_id));
 
 -- ── TABELA: reviews ─────────────────────────────────────────────
 create table reviews (
@@ -187,10 +225,11 @@ create table reviews (
 create index idx_reviews_reviewed on reviews(reviewed_id);
 
 alter table reviews enable row level security;
-create policy "reviews_read" on reviews
+
+create policy "reviews_select" on reviews
   for select using (true);
-create policy "reviews_write" on reviews
-  for insert using (auth.uid() = (select auth_id from users where id = reviewer_id));
+create policy "reviews_insert" on reviews
+  for insert with check (auth.uid() = (select auth_id from users where id = reviewer_id));
 
 -- FUNÇÃO: atualizar avg_rating automaticamente
 create or replace function update_professional_rating()
@@ -251,8 +290,13 @@ create index idx_notifications_user on notifications(user_id);
 create index idx_notifications_unread on notifications(user_id) where is_read = false;
 
 alter table notifications enable row level security;
-create policy "notifications_own" on notifications
-  for all using (auth.uid() = (select auth_id from users where id = user_id));
+
+create policy "notifications_select" on notifications
+  for select using (auth.uid() = (select auth_id from users where id = user_id));
+create policy "notifications_insert" on notifications
+  for insert with check (auth.uid() = (select auth_id from users where id = user_id));
+create policy "notifications_update" on notifications
+  for update using (auth.uid() = (select auth_id from users where id = user_id));
 
 -- ── TABELA: admin_logs ──────────────────────────────────────────
 create table admin_logs (
