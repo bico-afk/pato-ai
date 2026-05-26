@@ -1,424 +1,326 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
+import imageCompression from 'browser-image-compression'
+import { createClient } from '@/lib/supabase/client'
 
-/* ─── Constants ─────────────────────────────────────── */
 const SKILL_SUGGESTIONS = [
-  'Encanador', 'Eletricista', 'Pintor', 'Pedreiro', 'Marceneiro',
-  'Faxineira', 'Jardineiro', 'Motorista', 'Cozinheiro', 'Mecânico',
-  'Designer', 'Fotógrafo', 'Programador', 'Personal trainer', 'Professor',
-  'Manicure', 'Cabeleireiro', 'Maquiador', 'Dog walker', 'Babá',
-  'Diarista', 'Entregador', 'Montador', 'Chaveiro', 'Vidraceiro',
+  'Eletricista', 'Encanador', 'Pintor', 'Pedreiro', 'Marceneiro',
+  'Faxina', 'Jardineiro', 'Cozinheiro', 'Mecânico', 'Fotógrafo',
+  'Designer', 'Programador', 'Personal trainer', 'Professor particular',
+  'Manicure', 'Cabeleireiro', 'Dog walker', 'Babá', 'Diarista',
+  'Montador', 'Chaveiro', 'Vidraceiro', 'Motorista particular',
 ]
 
-/* ─── Main Page ──────────────────────────────────────── */
 export default function EditarPerfilPage() {
-  const router = useRouter()
+  const router   = useRouter()
   const supabase = createClient()
-  const avatarInputRef = useRef<HTMLInputElement>(null)
-  const coverInputRef = useRef<HTMLInputElement>(null)
+  const avatarRef = useRef<HTMLInputElement>(null)
 
-  const [uid, setUid] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState('')
+  const [userId,          setUserId]          = useState('')
+  const [loading,         setLoading]         = useState(true)
+  const [saving,          setSaving]          = useState(false)
+  const [toast,           setToast]           = useState('')
+  const [hasProfProfile,  setHasProfProfile]  = useState(false)
 
-  // Form state
-  const [fullName, setFullName] = useState('')
-  const [bio, setBio] = useState('')
-  const [city, setCity] = useState('')
-  const [state, setState] = useState('')
-  const [phone, setPhone] = useState('')
-  const [skills, setSkills] = useState<string[]>([])
-  const [skillInput, setSkillInput] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [coverUrl, setCoverUrl] = useState<string | null>(null)
-
-  // Upload state
+  // users fields
+  const [fullName,        setFullName]        = useState('')
+  const [bio,             setBio]             = useState('')
+  const [phone,           setPhone]           = useState('')
+  const [avatarUrl,       setAvatarUrl]       = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [uploadingCover, setUploadingCover] = useState(false)
 
-  const showToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
+  // professional_profiles fields
+  const [headline,   setHeadline]   = useState('')
+  const [skills,     setSkills]     = useState<string[]>([])
+  const [skillInput, setSkillInput] = useState('')
+  const [city,       setCity]       = useState('')
+  const [cityState,  setCityState]  = useState('')
+  const [radius,     setRadius]     = useState(50)
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { router.push('/login'); return }
-    const id = session.user.id
-    setUid(id)
+    if (!session) { router.push('/auth'); return }
 
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
-    if (data) {
-      setFullName(data.full_name ?? '')
-      setBio(data.bio ?? '')
-      setCity(data.city ?? '')
-      setState(data.state ?? '')
-      setPhone(data.phone ?? '')
-      setSkills(data.skills ?? [])
-      setAvatarUrl(data.avatar_url ?? null)
-      setCoverUrl(data.cover_url ?? null)
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('id, full_name, bio, phone, avatar_url')
+      .eq('auth_id', session.user.id)
+      .single()
+    if (!userRow) { setLoading(false); return }
+
+    const u = userRow as Record<string, unknown>
+    const uid = u.id as string
+    setUserId(uid)
+    setFullName((u.full_name as string | null) ?? '')
+    setBio((u.bio as string | null) ?? '')
+    setPhone((u.phone as string | null) ?? '')
+    setAvatarUrl((u.avatar_url as string | null) ?? null)
+
+    const { data: prof } = await supabase
+      .from('professional_profiles')
+      .select('headline, skills, location_city, location_state, service_radius_km')
+      .eq('user_id', uid)
+      .single()
+
+    if (prof) {
+      const p = prof as Record<string, unknown>
+      setHasProfProfile(true)
+      setHeadline((p.headline as string | null) ?? '')
+      setSkills((p.skills as string[] | null) ?? [])
+      setCity((p.location_city as string | null) ?? '')
+      setCityState((p.location_state as string | null) ?? '')
+      setRadius((p.service_radius_km as number | null) ?? 50)
     }
+
     setLoading(false)
   }, [supabase, router])
 
   useEffect(() => { load() }, [load])
 
-  /* ─── Avatar upload ──── */
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file || !uid) return
+    if (!file) return
     setUploadingAvatar(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `${uid}/avatar.${ext}`
-      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-      if (error) throw error
-      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-      const publicUrl = urlData.publicUrl + '?t=' + Date.now()
+      const compressed = await imageCompression(file, { maxSizeMB: 0.5, maxWidthOrHeight: 800, useWebWorker: true })
+      const ext  = file.name.split('.').pop() ?? 'jpg'
+      const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
+      const { data: stored, error: upErr } = await supabase.storage.from('demand-media').upload(path, compressed, { cacheControl: '3600', upsert: false })
+      if (upErr) { showToast('Erro no upload da foto'); setUploadingAvatar(false); return }
+      const { data: { publicUrl } } = supabase.storage.from('demand-media').getPublicUrl(stored.path)
       setAvatarUrl(publicUrl)
-      showToast('✅ Foto de perfil atualizada')
-    } catch {
-      // Fallback: try post-photos bucket
-      try {
-        const ext = file.name.split('.').pop()
-        const path = `avatars/${uid}/avatar.${ext}`
-        const { error } = await supabase.storage.from('post-photos').upload(path, file, { upsert: true })
-        if (error) throw error
-        const { data: urlData } = supabase.storage.from('post-photos').getPublicUrl(path)
-        const publicUrl = urlData.publicUrl + '?t=' + Date.now()
-        setAvatarUrl(publicUrl)
-        showToast('✅ Foto de perfil atualizada')
-      } catch {
-        showToast('❌ Erro ao fazer upload da foto')
-      }
-    }
+      showToast('Foto atualizada')
+    } catch { showToast('Erro no upload') }
     setUploadingAvatar(false)
   }
 
-  /* ─── Cover upload ──── */
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !uid) return
-    setUploadingCover(true)
-    try {
-      const ext = file.name.split('.').pop()
-      const path = `covers/${uid}/cover.${ext}`
-      const { error } = await supabase.storage.from('post-photos').upload(path, file, { upsert: true })
-      if (error) throw error
-      const { data: urlData } = supabase.storage.from('post-photos').getPublicUrl(path)
-      const publicUrl = urlData.publicUrl + '?t=' + Date.now()
-      setCoverUrl(publicUrl)
-      showToast('✅ Foto de capa atualizada')
-    } catch {
-      showToast('❌ Erro ao fazer upload da capa')
-    }
-    setUploadingCover(false)
-  }
-
-  /* ─── Skills ──── */
-  const addSkill = (skill: string) => {
-    const s = skill.trim()
-    if (!s || skills.includes(s) || skills.length >= 15) return
-    setSkills(prev => [...prev, s])
+  const addSkill = (s: string) => {
+    const t = s.trim()
+    if (!t || skills.includes(t) || skills.length >= 15) return
+    setSkills(prev => [...prev, t])
     setSkillInput('')
   }
-
-  const removeSkill = (skill: string) => {
-    setSkills(prev => prev.filter(s => s !== skill))
-  }
-
-  const filteredSuggestions = skillInput.length > 0
-    ? SKILL_SUGGESTIONS.filter(s => s.toLowerCase().includes(skillInput.toLowerCase()) && !skills.includes(s))
+  const removeSkill = (s: string) => setSkills(prev => prev.filter(x => x !== s))
+  const suggestions = skillInput.length > 0
+    ? SKILL_SUGGESTIONS.filter(s => s.toLowerCase().includes(skillInput.toLowerCase()) && !skills.includes(s)).slice(0, 5)
     : []
 
-  /* ─── Save ──── */
-  const handleSave = async () => {
-    if (!uid) return
-    if (fullName.trim().length < 2) { showToast('❌ Nome precisa ter pelo menos 2 caracteres'); return }
+  async function handleSave() {
+    if (!userId) return
+    if (fullName.trim().length < 2) { showToast('Nome precisa ter pelo menos 2 caracteres'); return }
     setSaving(true)
-    const { error } = await supabase.from('profiles').upsert({
-      id: uid,
-      full_name: fullName.trim(),
-      bio: bio.trim() || null,
-      city: city.trim() || null,
-      state: state.trim() || null,
-      phone: phone.trim() || null,
-      skills,
+
+    const usersResult = await supabase.from('users').update({
+      full_name:  fullName.trim(),
+      bio:        bio.trim() || null,
+      phone:      phone.trim() || null,
       avatar_url: avatarUrl,
-      cover_url: coverUrl,
-    })
+      updated_at: new Date().toISOString(),
+    }).eq('id', userId)
+
+    const profResult = hasProfProfile
+      ? await supabase.from('professional_profiles').update({
+          headline:          headline.trim() || null,
+          skills,
+          location_city:     city.trim()      || null,
+          location_state:    cityState.trim() || null,
+          service_radius_km: radius,
+          updated_at:        new Date().toISOString(),
+        }).eq('user_id', userId)
+      : null
+
+    const usersErr = usersResult.error
+    const profErr  = profResult?.error ?? null
+
     setSaving(false)
-    if (error) {
-      showToast('❌ Erro ao salvar: ' + error.message)
+
+    if (usersErr || profErr) {
+      showToast('Erro ao salvar: ' + (usersErr?.message ?? profErr?.message ?? ''))
     } else {
-      showToast('✅ Perfil salvo!')
-      setTimeout(() => router.push('/perfil'), 1000)
+      showToast('Perfil salvo!')
+      setTimeout(() => router.push('/perfil'), 800)
     }
   }
 
-  /* ─── Render ──── */
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#0F0F0F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 36, height: 36, border: '3px solid #333', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ minHeight: '100dvh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ width: 28, height: 28, border: '2px solid #111', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0F0F0F', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 40 }}>
+    <div style={{ minHeight: '100dvh', background: '#000', fontFamily: "'Inter', system-ui, sans-serif", color: '#fff' }}>
 
       {/* Toast */}
       {toast && (
-        <div style={{
-          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
-          background: '#1A1A1A', border: '1px solid #333', borderRadius: 12, padding: '10px 20px',
-          fontSize: 14, zIndex: 999, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-        }}>{toast}</div>
+        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', border: '1px solid #333', borderRadius: 10, padding: '10px 20px', fontSize: 14, zIndex: 999, whiteSpace: 'nowrap' }}>
+          {toast}
+        </div>
       )}
 
-      {/* Header */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(15,15,15,0.95)', backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid #1E1E1E', padding: '16px 20px',
-        display: 'flex', alignItems: 'center', gap: 16,
-        maxWidth: 480, margin: '0 auto',
-      }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 0 }}>←</button>
-        <span style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>Editar Perfil</span>
-      </div>
+      <header style={{ padding: '20px 24px', borderBottom: '1px solid #111', display: 'flex', alignItems: 'center', gap: 14 }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 4, display: 'flex' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+        </button>
+        <h1 style={{ fontSize: 17, fontWeight: 800, flex: 1, margin: 0 }}>Editar perfil</h1>
+      </header>
 
-      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px' }}>
+      <main style={{ maxWidth: 600, margin: '0 auto', padding: '28px 20px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* Cover photo */}
-        <div style={{ position: 'relative', height: 120, marginBottom: 52, marginTop: 0 }}>
-          <div style={{
-            width: '100%', height: '100%',
-            background: coverUrl
-              ? `url(${coverUrl}) center/cover`
-              : 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 50%, #FFD11A22 100%)',
-            borderRadius: '0 0 12px 12px',
-          }} />
-          <button onClick={() => coverInputRef.current?.click()} disabled={uploadingCover} style={{
-            position: 'absolute', bottom: 8, right: 8,
-            background: 'rgba(0,0,0,0.7)', border: '1px solid #444',
-            borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 12,
-            cursor: uploadingCover ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-          }}>
-            {uploadingCover ? '⏳' : '📷'} {uploadingCover ? 'Enviando…' : 'Alterar capa'}
-          </button>
-          <input ref={coverInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverUpload} />
-
-          {/* Avatar */}
-          <div style={{ position: 'absolute', bottom: -44, left: 16 }}>
-            <div style={{ position: 'relative' }}>
-              <div style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid #0F0F0F', overflow: 'hidden', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {avatarUrl
-                  ? <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 28 }}>🦆</span>
-                }
-              </div>
-              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} style={{
-                position: 'absolute', bottom: 0, right: 0,
-                width: 26, height: 26, borderRadius: '50%',
-                background: uploadingAvatar ? '#555' : '#FFD11A',
-                border: '2px solid #0F0F0F',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: uploadingAvatar ? 'default' : 'pointer', fontSize: 12,
-              }}>{uploadingAvatar ? '⏳' : '📷'}</button>
-              <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
+        {/* Avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#0f0f0f', border: '1px solid #1e1e1e', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {avatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              }
             </div>
+            <button type="button" onClick={() => avatarRef.current?.click()} disabled={uploadingAvatar}
+              style={{ position: 'absolute', bottom: -2, right: -2, width: 24, height: 24, borderRadius: '50%', background: '#fff', border: '2px solid #000', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {uploadingAvatar
+                ? <span style={{ width: 10, height: 10, border: '1.5px solid #444', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              }
+            </button>
+            <input ref={avatarRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
           </div>
+          <p style={{ fontSize: 13, color: '#555', margin: 0 }}>Clique para alterar a foto</p>
         </div>
 
-        {/* Form Fields */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+        {/* Section: Dados pessoais */}
+        <div style={{ background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#888', margin: 0 }}>Dados pessoais</h2>
 
-          {/* Full name */}
-          <div>
-            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Nome completo *</label>
-            <input
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              placeholder="Seu nome"
-              style={{
-                width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
-                borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 15,
-                outline: 'none',
-              }}
-            />
-          </div>
+          <Field label="Nome completo">
+            <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Seu nome" style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#222')} />
+          </Field>
 
-          {/* Bio */}
-          <div>
-            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>
-              Bio
-              <span style={{ float: 'right', fontWeight: 400, color: bio.length > 180 ? '#ef4444' : '#555' }}>{bio.length}/200</span>
-            </label>
-            <textarea
-              value={bio}
-              onChange={e => setBio(e.target.value.slice(0, 200))}
-              placeholder="Fale um pouco sobre você e seus serviços…"
-              rows={3}
-              style={{
-                width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
-                borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
-                outline: 'none', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5,
-              }}
-            />
-          </div>
+          <Field label={`Bio (${bio.length}/200)`}>
+            <textarea value={bio} onChange={e => setBio(e.target.value.slice(0, 200))} placeholder="Fale sobre você e seus serviços..." rows={3}
+              style={{ ...inputStyle, resize: 'none', lineHeight: 1.5, fontFamily: 'inherit', height: 'auto' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#222')} />
+          </Field>
 
-          {/* City + State */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10 }}>
+          <Field label="Telefone / WhatsApp">
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(11) 99999-9999" type="tel" style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#222')} />
+          </Field>
+        </div>
+
+        {/* Section: Perfil profissional */}
+        {hasProfProfile && (
+          <div style={{ background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#888', margin: 0 }}>Perfil profissional</h2>
+
+            <Field label="Headline">
+              <input value={headline} onChange={e => setHeadline(e.target.value.slice(0, 120))} placeholder="Ex: Eletricista com 10 anos de experiência" style={inputStyle}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+                onBlur={e  => (e.currentTarget.style.borderColor = '#222')} />
+            </Field>
+
             <div>
-              <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Cidade</label>
-              <input
-                value={city}
-                onChange={e => setCity(e.target.value)}
-                placeholder="Ex: São Paulo"
-                style={{
-                  width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
-                  borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
-                  outline: 'none',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Estado</label>
-              <input
-                value={state}
-                onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
-                placeholder="SP"
-                maxLength={2}
-                style={{
-                  width: 56, background: '#1A1A1A', border: '1px solid #2A2A2A',
-                  borderRadius: 10, padding: '12px 10px', color: '#fff', fontSize: 14,
-                  outline: 'none', textAlign: 'center',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Telefone / WhatsApp</label>
-            <input
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              placeholder="(11) 99999-9999"
-              type="tel"
-              style={{
-                width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
-                borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          {/* Skills */}
-          <div>
-            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>
-              Habilidades
-              <span style={{ float: 'right', fontWeight: 400, color: '#555' }}>{skills.length}/15</span>
-            </label>
-
-            {/* Current skills */}
-            {skills.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                {skills.map(skill => (
-                  <span key={skill} style={{
-                    background: '#FFD11A22', border: '1px solid #FFD11A55',
-                    borderRadius: 20, padding: '6px 12px', fontSize: 13, color: '#FFD11A',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
-                    {skill}
-                    <button onClick={() => removeSkill(skill)} style={{
-                      background: 'none', border: 'none', color: '#FFD11A', cursor: 'pointer',
-                      padding: 0, fontSize: 14, lineHeight: 1, opacity: 0.7,
-                    }}>×</button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Input */}
-            <div style={{ position: 'relative' }}>
-              <input
-                value={skillInput}
-                onChange={e => setSkillInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { e.preventDefault(); addSkill(skillInput) }
-                }}
-                placeholder="Digite uma habilidade e pressione Enter…"
-                style={{
-                  width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
-                  borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
-                  outline: 'none',
-                }}
-              />
-
-              {/* Suggestions dropdown */}
-              {filteredSuggestions.length > 0 && (
-                <div style={{
-                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-                  background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '0 0 10px 10px',
-                  maxHeight: 180, overflowY: 'auto',
-                }}>
-                  {filteredSuggestions.slice(0, 6).map(s => (
-                    <button key={s} onClick={() => addSkill(s)} style={{
-                      width: '100%', padding: '10px 14px', background: 'none', border: 'none',
-                      color: '#ddd', fontSize: 14, textAlign: 'left', cursor: 'pointer',
-                      borderBottom: '1px solid #2A2A2A',
-                    }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#2A2A2A')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >{s}</button>
+              <label style={labelStyle}>Habilidades <span style={{ float: 'right', fontWeight: 400, color: '#444' }}>{skills.length}/15</span></label>
+              {skills.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 8 }}>
+                  {skills.map(s => (
+                    <span key={s} style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 99, padding: '4px 10px', fontSize: 12, color: '#00d4ff', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {s}<button type="button" onClick={() => removeSkill(s)} style={{ background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1, opacity: 0.7 }}>×</button>
+                    </span>
                   ))}
                 </div>
               )}
+              <div style={{ position: 'relative' }}>
+                <input value={skillInput} onChange={e => setSkillInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(skillInput) } }}
+                  placeholder="Digite e pressione Enter..." style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = '#222')} />
+                {suggestions.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: '#111', border: '1px solid #222', borderTop: 'none', borderRadius: '0 0 10px 10px' }}>
+                    {suggestions.map(s => (
+                      <button key={s} type="button" onClick={() => addSkill(s)}
+                        style={{ width: '100%', padding: '9px 12px', background: 'none', border: 'none', borderBottom: '1px solid #1a1a1a', color: '#ccc', fontSize: 13, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#1a1a1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >{s}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Quick suggestions */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-              {SKILL_SUGGESTIONS.filter(s => !skills.includes(s)).slice(0, 8).map(s => (
-                <button key={s} onClick={() => addSkill(s)} style={{
-                  background: '#1A1A1A', border: '1px solid #333', borderRadius: 20,
-                  padding: '5px 12px', fontSize: 12, color: '#888', cursor: 'pointer',
-                }}>+ {s}</button>
-              ))}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Field label="Cidade" style={{ flex: 1 }}>
+                <input value={city} onChange={e => setCity(e.target.value)} placeholder="Cidade" style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = '#222')} />
+              </Field>
+              <Field label="UF">
+                <input value={cityState} onChange={e => setCityState(e.target.value.toUpperCase().slice(0, 2))} placeholder="SP" maxLength={2}
+                  style={{ ...inputStyle, width: 56, textAlign: 'center' }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = '#222')} />
+              </Field>
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Raio de atendimento <span style={{ float: 'right', color: '#00d4ff', fontWeight: 700 }}>{radius} km</span>
+              </label>
+              <input type="range" min={10} max={200} step={10} value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ width: '100%', accentColor: '#00d4ff' }} />
             </div>
           </div>
+        )}
 
-        </div>
-
-        {/* Save button */}
-        <button
-          onClick={handleSave}
-          disabled={saving || fullName.trim().length < 2}
-          style={{
-            width: '100%', padding: '16px 0', marginTop: 28,
-            background: saving || fullName.trim().length < 2 ? '#333' : '#FFD11A',
-            color: saving || fullName.trim().length < 2 ? '#666' : '#000',
-            border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800,
-            cursor: saving || fullName.trim().length < 2 ? 'default' : 'pointer',
-            transition: 'all 0.2s',
-          }}
-        >
-          {saving ? 'Salvando…' : '✅ Salvar perfil'}
+        <button type="button" onClick={handleSave} disabled={saving || fullName.trim().length < 2}
+          style={{ width: '100%', height: 52, borderRadius: 10, border: 'none', background: (!saving && fullName.trim().length >= 2) ? '#fff' : '#1a1a1a', color: (!saving && fullName.trim().length >= 2) ? '#000' : '#333', fontSize: 15, fontWeight: 800, cursor: (!saving && fullName.trim().length >= 2) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {saving
+            ? <span style={{ width: 18, height: 18, border: '2px solid #333', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+            : 'Salvar alterações'
+          }
         </button>
-
-        <button onClick={() => router.back()} style={{
-          width: '100%', padding: '14px 0', marginTop: 10,
-          background: 'none', border: '1px solid #2A2A2A', borderRadius: 14,
-          color: '#888', fontSize: 15, cursor: 'pointer',
-        }}>
+        <button type="button" onClick={() => router.back()}
+          style={{ width: '100%', height: 48, borderRadius: 10, border: '1px solid #1e1e1e', background: 'none', color: '#555', fontSize: 14, cursor: 'pointer' }}>
           Cancelar
         </button>
 
-      </div>
+      </main>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        input::placeholder, textarea::placeholder { color: #444; }
+      `}</style>
+    </div>
+  )
+}
+
+/* ── Sub-components ── */
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: '#111', border: '1px solid #222',
+  borderRadius: 10, padding: '11px 13px', color: '#fff', fontSize: 14,
+  outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 12, color: '#666', fontWeight: 600, display: 'block', marginBottom: 6,
+}
+
+function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={style}>
+      <label style={labelStyle}>{label}</label>
+      {children}
     </div>
   )
 }

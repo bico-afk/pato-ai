@@ -1,270 +1,166 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter }           from 'next/navigation'
-import { createClient }        from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
-/* ─── Types ───────────────────────────────────────────────── */
-interface Post {
+interface Demand {
   id:              string
-  title:           string
-  city:            string | null
+  description:     string
+  location_city:   string | null
+  location_country:string
   status:          string
+  candidate_count: number
   created_at:      string
-  candidatos:      number   // count of conversas
 }
 
-/* ─── Helpers ─────────────────────────────────────────────── */
-function timeAgo(d: string): string {
-  const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000)
+function timeAgo(iso: string): string {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
   if (m < 1)    return 'agora'
   if (m < 60)   return `${m}min`
   if (m < 1440) return `${Math.floor(m / 60)}h`
   if (m < 10080) return `${Math.floor(m / 1440)}d`
-  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-function statusStyle(s: string) {
-  if (s === 'aberto')    return { label: 'Aberto',       color: '#22C55E', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.2)'  }
-  if (s === 'concluido') return { label: 'Concluído',    color: '#FFD11A', bg: 'rgba(255,209,26,0.08)', border: 'rgba(255,209,26,0.2)' }
-  return                        { label: 'Em andamento', color: '#60A5FA', bg: 'rgba(96,165,250,0.08)', border: 'rgba(96,165,250,0.2)' }
+function statusBadge(s: string): { label: string; color: string; bg: string } {
+  switch (s) {
+    case 'open':        return { label: 'Aberto',       color: '#22c55e', bg: 'rgba(34,197,94,0.08)'   }
+    case 'in_progress': return { label: 'Em andamento', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)'  }
+    case 'closed':      return { label: 'Encerrado',    color: '#6b7280', bg: 'rgba(107,114,128,0.08)' }
+    case 'cancelled':   return { label: 'Cancelado',    color: '#ef4444', bg: 'rgba(239,68,68,0.08)'   }
+    default:            return { label: s,              color: '#888',    bg: 'rgba(136,136,136,0.08)' }
+  }
 }
 
-/* ─── Skeleton ────────────────────────────────────────────── */
 function Skeleton() {
   return (
-    <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 16, padding: '18px 20px' }}>
-      <div style={{ height: 13, width: '60%', borderRadius: 6, background: '#1e1e1e', marginBottom: 10 }} />
-      <div style={{ height: 11, width: '35%', borderRadius: 6, background: '#181818' }} />
+    <div style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 14, padding: '18px 20px' }}>
+      <div style={{ height: 13, width: '65%', borderRadius: 6, background: '#1a1a1a', marginBottom: 10 }} />
+      <div style={{ height: 11, width: '40%', borderRadius: 6, background: '#161616' }} />
     </div>
   )
 }
 
-/* ═══════════════════════════════════════════════════════════ */
 export default function MeusPedidosPage() {
-  const router = useRouter()
+  const router   = useRouter()
+  const supabase = createClient()
 
-  const [posts,   setPosts]   = useState<Post[]>([])
-  const [loading, setLoading] = useState(true)
-  const [meId,    setMeId]    = useState<string | null>(null)
-  const [noAuth,  setNoAuth]  = useState(false)
+  const [demands,  setDemands]  = useState<Demand[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [noUser,   setNoUser]   = useState(false)
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/auth?next=/meus-pedidos'); return }
 
-      if (!session?.user) {
-        // Try anonymous sign-in (same session the home page uses)
-        const { data } = await supabase.auth.signInAnonymously()
-        if (!data.user) { setNoAuth(true); setLoading(false); return }
-        setMeId(data.user.id)
-        fetchPosts(supabase, data.user.id)
-      } else {
-        setMeId(session.user.id)
-        fetchPosts(supabase, session.user.id)
-      }
-    }
+      // Get the users.id (pk) from auth_id
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', session.user.id)
+        .single()
+      if (!userRow) { setNoUser(true); setLoading(false); return }
 
-    async function fetchPosts(
-      supabase: ReturnType<typeof createClient>,
-      uid: string,
-    ) {
-      /* Posts do usuário */
-      const { data: postsData, error } = await supabase
-        .from('posts')
-        .select('id, title, city, status, created_at')
+      const uid = (userRow as Record<string, unknown>).id as string
+
+      const { data } = await supabase
+        .from('demands')
+        .select('id, description, location_city, location_country, status, candidate_count, created_at')
         .eq('user_id', uid)
         .order('created_at', { ascending: false })
         .limit(50)
 
-      if (error || !postsData) { setLoading(false); return }
-
-      /* Contagem de candidatos por pedido */
-      const ids = postsData.map(p => p.id)
-      let countMap: Record<string, number> = {}
-
-      if (ids.length > 0) {
-        const { data: convs } = await supabase
-          .from('conversas')
-          .select('post_id')
-          .in('post_id', ids)
-
-        convs?.forEach(c => {
-          countMap[c.post_id] = (countMap[c.post_id] ?? 0) + 1
-        })
-      }
-
-      const enriched: Post[] = postsData.map(p => ({
-        ...p,
-        candidatos: countMap[p.id] ?? 0,
-      }))
-
-      setPosts(enriched)
+      setDemands((data as unknown as Demand[] | null) ?? [])
       setLoading(false)
     }
-
     load()
-  }, [])
+  }, [supabase, router])
 
-  /* ── Render ── */
   return (
-    <div style={{
-      minHeight: '100dvh', backgroundColor: '#0a0a0a',
-      fontFamily: 'Inter, system-ui, sans-serif', color: '#fff',
-    }}>
+    <div style={{ minHeight: '100dvh', background: '#000', fontFamily: "'Inter', system-ui, sans-serif", color: '#fff' }}>
 
-      {/* ══ HEADER ══ */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 100,
-        backgroundColor: 'rgba(10,10,10,0.97)', backdropFilter: 'blur(14px)',
-        borderBottom: '1px solid #1a1a1a',
-      }}>
-        <div style={{
-          maxWidth: 640, margin: '0 auto',
-          display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
-        }}>
-          <button
-            onClick={() => router.back()}
-            style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
-            </svg>
-          </button>
-          <h1 style={{ fontSize: 16, fontWeight: 800, flex: 1 }}>Meus pedidos</h1>
-          <button
-            onClick={() => router.push('/')}
-            style={{
-              height: 32, borderRadius: 99, border: 'none',
-              background: 'linear-gradient(135deg, #FFD11A, #FF9500)',
-              color: '#0a0a0a', fontSize: 12, fontWeight: 700,
-              cursor: 'pointer', padding: '0 16px',
-            }}
-          >
-            + Novo pedido
-          </button>
-        </div>
+      <header style={{ padding: '20px 24px', borderBottom: '1px solid #111', display: 'flex', alignItems: 'center', gap: 14 }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 4, display: 'flex' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+        </button>
+        <h1 style={{ fontSize: 16, fontWeight: 800, flex: 1, margin: 0 }}>Meus pedidos</h1>
+        <Link href="/nova-demanda" style={{ height: 34, padding: '0 16px', borderRadius: 8, background: '#fff', color: '#000', fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+          + Novo
+        </Link>
       </header>
 
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 16px 64px' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 20px 64px' }}>
 
-        {/* Loading */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[1, 2, 3].map(i => <Skeleton key={i} />)}
           </div>
         )}
 
-        {/* No auth */}
-        {!loading && noAuth && (
+        {!loading && noUser && (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-            <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Sessão não encontrada</p>
-            <p style={{ fontSize: 13, color: '#555', marginBottom: 24 }}>
-              Volte para a home e tente postar novamente
-            </p>
-            <button
-              onClick={() => router.push('/')}
-              style={{ height: 44, borderRadius: 99, border: 'none', background: '#FFD11A', color: '#0a0a0a', fontWeight: 800, cursor: 'pointer', padding: '0 28px', fontSize: 14 }}
-            >
-              Ir para home
+            <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Perfil não encontrado</p>
+            <p style={{ fontSize: 13, color: '#555', marginBottom: 24 }}>Faça login para ver seus pedidos</p>
+            <button onClick={() => router.push('/auth')}
+              style={{ height: 44, borderRadius: 10, border: 'none', background: '#fff', color: '#000', fontWeight: 800, cursor: 'pointer', padding: '0 28px', fontSize: 14 }}>
+              Entrar
             </button>
           </div>
         )}
 
-        {/* Empty */}
-        {!loading && !noAuth && posts.length === 0 && (
+        {!loading && !noUser && demands.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📝</div>
+            <div style={{ fontSize: 44, marginBottom: 16 }}>📝</div>
             <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Nenhum pedido ainda</p>
-            <p style={{ fontSize: 13, color: '#555', marginBottom: 28 }}>
-              Poste o que você precisa — alguém vai aparecer
+            <p style={{ fontSize: 13, color: '#555', marginBottom: 28, lineHeight: 1.6 }}>
+              Publique o que você precisa — profissionais da sua região aparecem.
             </p>
-            <button
-              onClick={() => router.push('/')}
-              style={{ height: 44, borderRadius: 99, border: 'none', background: 'linear-gradient(135deg, #FFD11A, #FF9500)', color: '#0a0a0a', fontWeight: 800, cursor: 'pointer', padding: '0 28px', fontSize: 14 }}
-            >
-              Fazer pedido →
-            </button>
+            <Link href="/nova-demanda" style={{ height: 44, borderRadius: 10, border: 'none', background: '#fff', color: '#000', fontWeight: 800, fontSize: 14, textDecoration: 'none', padding: '11px 28px' }}>
+              Publicar pedido →
+            </Link>
           </div>
         )}
 
-        {/* List */}
-        {!loading && posts.length > 0 && (
+        {!loading && demands.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {posts.map(p => <PostRow key={p.id} post={p} onClick={() => router.push(`/pedido/${p.id}`)} />)}
+            {demands.map(d => {
+              const badge = statusBadge(d.status)
+              return (
+                <div key={d.id} onClick={() => router.push(`/pedido/${d.id}`)}
+                  style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
+                >
+                  {/* Candidate badge */}
+                  <div style={{ width: 46, height: 46, borderRadius: 12, flexShrink: 0, background: d.candidate_count > 0 ? 'rgba(0,212,255,0.06)' : '#111', border: `1px solid ${d.candidate_count > 0 ? 'rgba(0,212,255,0.15)' : '#1e1e1e'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={d.candidate_count > 0 ? '#00d4ff' : '#333'} strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    {d.candidate_count > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: '#00d4ff' }}>{d.candidate_count}</span>}
+                  </div>
+
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#e0e0e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '0 0 6px' }}>
+                      {d.description}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: badge.color, background: badge.bg, borderRadius: 99, padding: '2px 8px' }}>
+                        {badge.label}
+                      </span>
+                      {d.location_city && <span style={{ fontSize: 11, color: '#444' }}>📍 {d.location_city}</span>}
+                      <span style={{ fontSize: 11, color: '#333' }}>{timeAgo(d.created_at)}</span>
+                    </div>
+                  </div>
+
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
-
-      <style>{`
-        * { box-sizing: border-box; margin: 0; }
-        ::-webkit-scrollbar { display: none; }
-        body { background: #0a0a0a; }
-      `}</style>
-    </div>
-  )
-}
-
-/* ─── Post Row ────────────────────────────────────────────── */
-function PostRow({ post, onClick }: { post: Post; onClick: () => void }) {
-  const st = statusStyle(post.status)
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        background: '#111', border: '1px solid #1a1a1a', borderRadius: 16,
-        padding: '16px 18px', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', gap: 14,
-        transition: 'border-color 0.15s',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
-      onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
-    >
-      {/* Left — candidatos badge */}
-      <div style={{
-        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-        background: post.candidatos > 0 ? 'rgba(255,209,26,0.08)' : '#161616',
-        border: `1px solid ${post.candidatos > 0 ? 'rgba(255,209,26,0.2)' : '#1e1e1e'}`,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 1,
-      }}>
-        <span style={{ fontSize: 16 }}>{post.candidatos > 0 ? '👤' : '⏳'}</span>
-        {post.candidatos > 0 && (
-          <span style={{ fontSize: 9, fontWeight: 800, color: '#FFD11A' }}>{post.candidatos}</span>
-        )}
-      </div>
-
-      {/* Center */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{
-          fontSize: 14, fontWeight: 700, color: '#e0e0e0',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          marginBottom: 5,
-        }}>
-          {post.title}
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, color: st.color,
-            background: st.bg, border: `1px solid ${st.border}`,
-            borderRadius: 99, padding: '2px 8px',
-          }}>
-            {st.label}
-          </span>
-          {post.city && (
-            <span style={{ fontSize: 11, color: '#444' }}>📍 {post.city}</span>
-          )}
-          <span style={{ fontSize: 11, color: '#333' }}>{timeAgo(post.created_at)}</span>
-        </div>
-      </div>
-
-      {/* Right arrow */}
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-        <path d="M9 18l6-6-6-6"/>
-      </svg>
     </div>
   )
 }
