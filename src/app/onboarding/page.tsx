@@ -175,6 +175,18 @@ export default function OnboardingPage() {
           <p style={{ textAlign: 'center', fontSize: 13, color: '#333', marginTop: 28 }}>
             Você pode fazer os dois. Isso define só por onde você começa.
           </p>
+
+          {/* Skip link */}
+          <div style={{ textAlign: 'center', marginTop: 20 }}>
+            <Link
+              href="/feed"
+              style={{ fontSize: 14, color: '#888', textDecoration: 'none', transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#888')}
+            >
+              Explorar o feed primeiro →
+            </Link>
+          </div>
         </div>
       </main>
 

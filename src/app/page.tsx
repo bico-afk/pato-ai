@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import SearchBar from '@/components/landing/SearchBar'
 import SearchResults from '@/components/landing/SearchResults'
-import LiveFeed from '@/components/landing/LiveFeed'
+import DemandFeed from '@/components/demand/DemandFeed'
 import { useSearch } from '@/hooks/useSearch'
 
 /* ── SVG icons for Mission section ─────────────────────────── */
@@ -109,7 +109,7 @@ export default function Home() {
 
       {/* ── LIVE FEED ───────────────────────────────────────── */}
       <section style={{ borderTop: '1px solid #111', paddingTop: 56 }}>
-        <LiveFeed />
+        <DemandFeed title="Pedidos chegando agora" />
       </section>
 
       {/* ── MISSION ─────────────────────────────────────────── */}
