@@ -69,14 +69,16 @@ export default function Home() {
         </p>
 
         {/* Headline */}
-        <h1 style={{
-          fontSize: 'clamp(32px, 6vw, 52px)',
-          fontWeight: 900,
-          letterSpacing: '-1.5px',
-          lineHeight: 1.1,
-          marginBottom: 12,
-          color: '#fff',
-        }}>
+        <h1
+          className="text-[42px] sm:text-[52px] lg:text-[64px]"
+          style={{
+            fontWeight: 900,
+            letterSpacing: '-1.5px',
+            lineHeight: 1.1,
+            marginBottom: 12,
+            color: '#fff',
+          }}
+        >
           O que você precisa?
         </h1>
 
@@ -178,18 +180,18 @@ export default function Home() {
         padding: '72px 20px',
         textAlign: 'center',
       }}>
-        <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: '#334155', textTransform: 'uppercase', marginBottom: 16 }}>
-          Prefere falar com a gente?
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: '#00d4ff', textTransform: 'uppercase', marginBottom: 16 }}>
+          PREFERE PELO WHATSAPP?
         </p>
         <h2 style={{
-          fontSize: 'clamp(22px, 4vw, 34px)', fontWeight: 800,
-          letterSpacing: '-0.5px', color: '#fff',
-          marginBottom: 12, lineHeight: 1.2,
+          fontSize: 'clamp(28px, 4vw, 40px)', fontWeight: 900,
+          letterSpacing: '-1px', color: '#fff',
+          marginBottom: 16, lineHeight: 1.1,
         }}>
-          Atendimento pelo WhatsApp
+          Mande mensagem agora.
         </h2>
-        <p style={{ fontSize: 15, color: '#475569', marginBottom: 32, maxWidth: 420, margin: '0 auto 32px' }}>
-          Nossa equipe responde em minutos. Mande uma mensagem e a gente te ajuda a encontrar o profissional certo.
+        <p style={{ fontSize: 15, color: '#475569', maxWidth: 440, margin: '0 auto 32px', lineHeight: 1.65 }}>
+          Em 3 minutos você tem um perfil e começa a receber bicos — em qualquer idioma, de qualquer lugar do mundo.
         </p>
         <a
           href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? ''}`}

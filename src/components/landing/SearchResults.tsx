@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import type { SearchResult } from '@/hooks/useSearch'
 
 /* ── Star rating ─────────────────────────────────────────── */
@@ -101,6 +102,7 @@ interface Props {
 
 export default function SearchResults({ results, loading, error, searched, query, cidade }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   useEffect(() => {
     if (searched && ref.current) {
@@ -162,27 +164,37 @@ export default function SearchResults({ results, loading, error, searched, query
       {/* State B — no results → convert to supply */}
       {!loading && !error && results.length === 0 && searched && (
         <div style={{
-          textAlign: 'center', padding: '48px 24px',
-          background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 12,
+          background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 12,
+          padding: 32, textAlign: 'center',
         }}>
-          <p style={{ fontSize: 16, color: '#94a3b8', lineHeight: 1.65, marginBottom: 24 }}>
-            Ainda não temos <span style={{ color: '#fff', fontWeight: 700 }}>{query}</span> em{' '}
-            <span style={{ color: '#fff', fontWeight: 700 }}>{cidade || 'sua região'}</span>.<br />
-            Seja o primeiro. Cadastre-se e receba chamados desta região.
+          <p style={{ fontSize: 18, color: '#fff', lineHeight: 1.6, marginBottom: 10 }}>
+            Ainda não temos <strong>{query}</strong> em <strong>{cidade || 'sua região'}</strong>.
           </p>
-          <a
-            href={`/criar-perfil?categoria=${encodeURIComponent(query)}&cidade=${encodeURIComponent(cidade)}`}
+          <p style={{ fontSize: 15, color: '#888', lineHeight: 1.6, marginBottom: 28 }}>
+            Seja o primeiro. Cadastre-se e comece a receber chamados desta região.
+          </p>
+          <button
+            onClick={() => router.push(`/criar-perfil?categoria=${encodeURIComponent(query)}&cidade=${encodeURIComponent(cidade)}`)}
             style={{
-              display: 'inline-block',
-              height: 46, borderRadius: 8, border: 'none',
-              background: '#00d4ff', color: '#000',
-              fontSize: 14, fontWeight: 800, cursor: 'pointer',
-              padding: '0 28px', textDecoration: 'none',
-              lineHeight: '46px',
+              background: '#fff', color: '#000',
+              fontWeight: 700, fontSize: 14,
+              padding: '12px 24px', borderRadius: 8,
+              border: 'none', cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.background = '#00d4ff'
+              el.style.color = '#000'
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.background = '#fff'
+              el.style.color = '#000'
             }}
           >
-            Quero oferecer este serviço →
-          </a>
+            Quero oferecer este serviço
+          </button>
         </div>
       )}
     </div>
