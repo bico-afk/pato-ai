@@ -8,7 +8,6 @@ const PROTECTED_PREFIXES = [
   '/chat/',
   '/perfil',
   '/criar-perfil',
-  '/nova-demanda',
   '/admin',
 ]
 
