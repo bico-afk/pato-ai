@@ -76,6 +76,14 @@ export function useCreateDemand() {
 
       return { id: data.id }
     } catch (e) {
+      console.error('[useCreateDemand] Insert error:', {
+        message: e instanceof Error ? e.message : e,
+        statusCode: (e as Record<string, unknown>)?.statusCode,
+        code: (e as Record<string, unknown>)?.code,
+        details: (e as Record<string, unknown>)?.details,
+        hint: (e as Record<string, unknown>)?.hint,
+        full: e,
+      })
       const msg = e instanceof Error ? e.message : 'Erro ao publicar. Tente novamente.'
       setError(msg)
       throw e

@@ -121,7 +121,16 @@ export default function DemandForm() {
           .from(BUCKET)
           .upload(path, uploadFile, { cacheControl: '3600', upsert: false })
 
-        if (storageErr) throw storageErr
+        if (storageErr) {
+          console.error('[DemandForm] Storage upload error:', {
+            message: storageErr.message,
+            statusCode: (storageErr as Record<string, unknown>).statusCode,
+            error: (storageErr as Record<string, unknown>).error,
+            cause: (storageErr as Record<string, unknown>).cause,
+            full: storageErr,
+          })
+          throw storageErr
+        }
 
         const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(stored.path)
 
@@ -130,7 +139,8 @@ export default function DemandForm() {
             ? { ...m, loading: false, url: publicUrl }
             : m
         ))
-      } catch {
+      } catch (uploadErr) {
+        console.error('[DemandForm] Upload catch:', uploadErr)
         setMedias(prev => prev.map((m, idx) =>
           idx === medias.length + i
             ? { ...m, loading: false, error: 'Erro no upload' }
