@@ -1,9 +1,24 @@
--- Extensions
+-- ── DROP (ordem inversa de dependência) ────────────────────────
+drop table if exists admin_logs cascade;
+drop table if exists notifications cascade;
+drop table if exists external_reputation cascade;
+drop table if exists reviews cascade;
+drop table if exists messages cascade;
+drop table if exists chats cascade;
+drop table if exists applications cascade;
+drop table if exists demands cascade;
+drop table if exists professional_profiles cascade;
+drop table if exists users cascade;
+drop function if exists search_professionals cascade;
+drop function if exists update_professional_rating cascade;
+
+-- ── Extensions ──────────────────────────────────────────────────
 create extension if not exists "uuid-ossp";
 create extension if not exists postgis;
 create extension if not exists pg_trgm;
--- TABELA: users
-create table if not exists users (
+
+-- ── TABELA: users ───────────────────────────────────────────────
+create table users (
   id uuid primary key default uuid_generate_v4(),
   auth_id uuid unique references auth.users(id) on delete cascade,
   username text unique not null,
@@ -22,13 +37,12 @@ create table if not exists users (
   updated_at timestamptz default now()
 );
 
--- RLS
 alter table users enable row level security;
-
 create policy "users_own" on users
   for all using (auth.uid() = auth_id);
--- TABELA: professional_profiles
-create table if not exists professional_profiles (
+
+-- ── TABELA: professional_profiles ──────────────────────────────
+create table professional_profiles (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid unique references users(id) on delete cascade,
   headline text,
@@ -50,19 +64,17 @@ create table if not exists professional_profiles (
   updated_at timestamptz default now()
 );
 
-create index if not exists idx_professional_location on professional_profiles using gist(location_point);
-create index if not exists idx_professional_skills on professional_profiles using gin(skills);
+create index idx_professional_location on professional_profiles using gist(location_point);
+create index idx_professional_skills on professional_profiles using gin(skills);
 
--- RLS
 alter table professional_profiles enable row level security;
-
 create policy "professional_profiles_read" on professional_profiles
   for select using (true);
-
 create policy "professional_profiles_write" on professional_profiles
   for all using (auth.uid() = (select auth_id from users where id = user_id));
--- TABELA: demands
-create table if not exists demands (
+
+-- ── TABELA: demands ─────────────────────────────────────────────
+create table demands (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references users(id) on delete set null,
   anonymous_token text unique,
@@ -84,22 +96,20 @@ create table if not exists demands (
   closed_at timestamptz
 );
 
-create index if not exists idx_demands_location on demands using gist(location_point);
-create index if not exists idx_demands_status on demands(status);
-create index if not exists idx_demands_created on demands(created_at desc);
-create index if not exists idx_demands_search on demands
+create index idx_demands_location on demands using gist(location_point);
+create index idx_demands_status on demands(status);
+create index idx_demands_created on demands(created_at desc);
+create index idx_demands_search on demands
   using gin(to_tsvector('portuguese', title || ' ' || description));
 
--- RLS
 alter table demands enable row level security;
-
 create policy "demands_read" on demands
   for select using (true);
-
 create policy "demands_write" on demands
   for all using (auth.uid() = (select auth_id from users where id = user_id));
--- TABELA: applications
-create table if not exists applications (
+
+-- ── TABELA: applications ────────────────────────────────────────
+create table applications (
   id uuid primary key default uuid_generate_v4(),
   demand_id uuid references demands(id) on delete cascade,
   professional_id uuid references users(id) on delete cascade,
@@ -110,10 +120,11 @@ create table if not exists applications (
   unique(demand_id, professional_id)
 );
 
-create index if not exists idx_applications_demand on applications(demand_id);
-create index if not exists idx_applications_professional on applications(professional_id);
--- TABELA: chats
-create table if not exists chats (
+create index idx_applications_demand on applications(demand_id);
+create index idx_applications_professional on applications(professional_id);
+
+-- ── TABELA: chats ───────────────────────────────────────────────
+create table chats (
   id uuid primary key default uuid_generate_v4(),
   demand_id uuid references demands(id) on delete cascade,
   application_id uuid unique references applications(id) on delete cascade,
@@ -124,11 +135,19 @@ create table if not exists chats (
   updated_at timestamptz default now()
 );
 
-create index if not exists idx_chats_client on chats(client_id);
-create index if not exists idx_chats_professional on chats(professional_id);
+create index idx_chats_client on chats(client_id);
+create index idx_chats_professional on chats(professional_id);
 
--- TABELA: messages
-create table if not exists messages (
+alter table chats enable row level security;
+create policy "chats_participants" on chats
+  for all using (
+    auth.uid() = (select auth_id from users where id = client_id)
+    or
+    auth.uid() = (select auth_id from users where id = professional_id)
+  );
+
+-- ── TABELA: messages ────────────────────────────────────────────
+create table messages (
   id uuid primary key default uuid_generate_v4(),
   chat_id uuid references chats(id) on delete cascade,
   sender_id uuid references users(id) on delete set null,
@@ -139,22 +158,10 @@ create table if not exists messages (
   created_at timestamptz default now()
 );
 
-create index if not exists idx_messages_chat on messages(chat_id);
-create index if not exists idx_messages_created on messages(created_at asc);
+create index idx_messages_chat on messages(chat_id);
+create index idx_messages_created on messages(created_at asc);
 
--- RLS: chats
-alter table chats enable row level security;
-
-create policy "chats_participants" on chats
-  for all using (
-    auth.uid() = (select auth_id from users where id = client_id)
-    or
-    auth.uid() = (select auth_id from users where id = professional_id)
-  );
-
--- RLS: messages
 alter table messages enable row level security;
-
 create policy "messages_participants" on messages
   for all using (
     auth.uid() in (
@@ -163,8 +170,9 @@ create policy "messages_participants" on messages
       where c.id = chat_id
     )
   );
--- TABELA: reviews
-create table if not exists reviews (
+
+-- ── TABELA: reviews ─────────────────────────────────────────────
+create table reviews (
   id uuid primary key default uuid_generate_v4(),
   demand_id uuid references demands(id) on delete cascade,
   chat_id uuid references chats(id) on delete cascade,
@@ -176,14 +184,11 @@ create table if not exists reviews (
   unique(chat_id, reviewer_id)
 );
 
-create index if not exists idx_reviews_reviewed on reviews(reviewed_id);
+create index idx_reviews_reviewed on reviews(reviewed_id);
 
--- RLS (reviews são públicos para leitura)
 alter table reviews enable row level security;
-
 create policy "reviews_read" on reviews
   for select using (true);
-
 create policy "reviews_write" on reviews
   for insert using (auth.uid() = (select auth_id from users where id = reviewer_id));
 
@@ -210,8 +215,9 @@ $$ language plpgsql;
 create trigger trigger_update_rating
   after insert on reviews
   for each row execute function update_professional_rating();
--- TABELA: external_reputation
-create table if not exists external_reputation (
+
+-- ── TABELA: external_reputation ─────────────────────────────────
+create table external_reputation (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references users(id) on delete cascade,
   platform text not null check (platform in ('instagram', 'google', 'facebook')),
@@ -226,8 +232,9 @@ create table if not exists external_reputation (
   updated_at timestamptz default now(),
   unique(user_id, platform)
 );
--- TABELA: notifications
-create table if not exists notifications (
+
+-- ── TABELA: notifications ───────────────────────────────────────
+create table notifications (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references users(id) on delete cascade,
   type text not null,
@@ -240,16 +247,15 @@ create table if not exists notifications (
   created_at timestamptz default now()
 );
 
-create index if not exists idx_notifications_user on notifications(user_id);
-create index if not exists idx_notifications_unread on notifications(user_id) where is_read = false;
+create index idx_notifications_user on notifications(user_id);
+create index idx_notifications_unread on notifications(user_id) where is_read = false;
 
--- RLS
 alter table notifications enable row level security;
-
 create policy "notifications_own" on notifications
   for all using (auth.uid() = (select auth_id from users where id = user_id));
--- TABELA: admin_logs
-create table if not exists admin_logs (
+
+-- ── TABELA: admin_logs ──────────────────────────────────────────
+create table admin_logs (
   id uuid primary key default uuid_generate_v4(),
   admin_id uuid references users(id) on delete set null,
   action text not null,
@@ -258,7 +264,8 @@ create table if not exists admin_logs (
   metadata jsonb,
   created_at timestamptz default now()
 );
--- FUNÇÃO: busca de profissionais por raio com expansão automática
+
+-- ── FUNÇÃO: busca por raio com expansão automática ──────────────
 create or replace function search_professionals(
   search_query text,
   lat float,
