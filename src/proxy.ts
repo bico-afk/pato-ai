@@ -1,6 +1,22 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+/* ── Route classification ───────────────────────────────────── */
+const PROTECTED_PREFIXES = [
+  '/onboarding',
+  '/meus-pedidos',
+  '/chat/',
+  '/perfil',
+  '/criar-perfil',
+  '/nova-demanda',
+  '/admin',
+]
+
+function isProtected(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some(p => pathname === p || pathname.startsWith(p))
+}
+
+/* ── Proxy (Next.js 16 middleware) ──────────────────────────── */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
@@ -21,8 +37,16 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Refresh session — keeps auth cookies up to date
-  await supabase.auth.getUser()
+  // Always refresh session to keep auth cookies current
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Redirect unauthenticated users away from protected routes
+  if (isProtected(request.nextUrl.pathname) && !user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth'
+    url.searchParams.set('next', request.nextUrl.pathname)
+    return NextResponse.redirect(url)
+  }
 
   return response
 }
