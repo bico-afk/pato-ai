@@ -1,515 +1,597 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
+import { useState, useEffect, Fragment } from 'react'
+import { useRouter }                     from 'next/navigation'
+import Image                             from 'next/image'
+import { createClient }                  from '@/lib/supabase'
 
-/* ─────────────────────────────────────────────────────────
-   LOCATION DATA  —  Brasil primeiro, depois o mundo
-   ───────────────────────────────────────────────────────── */
-const BR_STATES = [
-  { code: 'AC', label: 'Acre' }, { code: 'AL', label: 'Alagoas' },
-  { code: 'AP', label: 'Amapá' }, { code: 'AM', label: 'Amazonas' },
-  { code: 'BA', label: 'Bahia' }, { code: 'CE', label: 'Ceará' },
-  { code: 'DF', label: 'Distrito Federal' }, { code: 'ES', label: 'Espírito Santo' },
-  { code: 'GO', label: 'Goiás' }, { code: 'MA', label: 'Maranhão' },
-  { code: 'MT', label: 'Mato Grosso' }, { code: 'MS', label: 'Mato Grosso do Sul' },
-  { code: 'MG', label: 'Minas Gerais' }, { code: 'PA', label: 'Pará' },
-  { code: 'PB', label: 'Paraíba' }, { code: 'PR', label: 'Paraná' },
-  { code: 'PE', label: 'Pernambuco' }, { code: 'PI', label: 'Piauí' },
-  { code: 'RJ', label: 'Rio de Janeiro' }, { code: 'RN', label: 'Rio Grande do Norte' },
-  { code: 'RS', label: 'Rio Grande do Sul' }, { code: 'RO', label: 'Rondônia' },
-  { code: 'RR', label: 'Roraima' }, { code: 'SC', label: 'Santa Catarina' },
-  { code: 'SP', label: 'São Paulo' }, { code: 'SE', label: 'Sergipe' },
-  { code: 'TO', label: 'Tocantins' },
-]
-
-const WORLD = [
-  { code: 'PT', label: 'Portugal' }, { code: 'AO', label: 'Angola' },
-  { code: 'MZ', label: 'Moçambique' }, { code: 'AR', label: 'Argentina' },
-  { code: 'UY', label: 'Uruguai' }, { code: 'PY', label: 'Paraguai' },
-  { code: 'BO', label: 'Bolívia' }, { code: 'CO', label: 'Colômbia' },
-  { code: 'VE', label: 'Venezuela' }, { code: 'CL', label: 'Chile' },
-  { code: 'MX', label: 'México' }, { code: 'US', label: 'Estados Unidos' },
-  { code: 'CA', label: 'Canadá' }, { code: 'ES', label: 'Espanha' },
-  { code: 'FR', label: 'França' }, { code: 'DE', label: 'Alemanha' },
-  { code: 'IT', label: 'Itália' }, { code: 'GB', label: 'Reino Unido' },
-  { code: 'CH', label: 'Suíça' }, { code: 'AU', label: 'Austrália' },
-  { code: 'NZ', label: 'Nova Zelândia' }, { code: 'JP', label: 'Japão' },
-  { code: 'SG', label: 'Singapura' }, { code: 'ZA', label: 'África do Sul' },
-  { code: 'OTHER', label: 'Outro lugar' },
-]
-
-/* ─────────────────────────────────────────────────────────
-   HABILIDADES / SKILLS CHIPS
-   ───────────────────────────────────────────────────────── */
+/* ─── Constants ───────────────────────────────────────────── */
 const SKILLS = [
-  '⚡ Elétrica', '🔧 Encanamento', '🧹 Limpeza', '🏗️ Reformas',
-  '🎨 Pintura', '🪛 Montagem', '💻 Informática', '📚 Aulas',
-  '✂️ Beleza', '🐾 Pets', '🎨 Design', '🍳 Culinária', '✨ Outros',
+  { label: 'Elétrica',    icon: '⚡' },
+  { label: 'Encanamento', icon: '🔧' },
+  { label: 'Pintura',     icon: '🎨' },
+  { label: 'Limpeza',     icon: '🧹' },
+  { label: 'Reformas',    icon: '🏗️' },
+  { label: 'Aulas',       icon: '📚' },
+  { label: 'Informática', icon: '💻' },
+  { label: 'Design',      icon: '✏️' },
+  { label: 'Culinária',   icon: '🍳' },
+  { label: 'Beleza',      icon: '✂️' },
+  { label: 'Pets',        icon: '🐾' },
+  { label: 'Outros',      icon: '➕' },
 ]
 
-/* ─────────────────────────────────────────────────────────
-   ICONS
-   ───────────────────────────────────────────────────────── */
-function IconCheck() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-      <path d="M2.5 7l3 3 6-6" stroke="#0F0F0F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-function IconArrowLeft() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
-    </svg>
-  )
-}
-function IconGPS() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-    </svg>
-  )
-}
+const STATES = [
+  { label: 'Acre',                value: 'AC' },
+  { label: 'Alagoas',             value: 'AL' },
+  { label: 'Amapá',               value: 'AP' },
+  { label: 'Amazonas',            value: 'AM' },
+  { label: 'Bahia',               value: 'BA' },
+  { label: 'Ceará',               value: 'CE' },
+  { label: 'Distrito Federal',    value: 'DF' },
+  { label: 'Espírito Santo',      value: 'ES' },
+  { label: 'Goiás',               value: 'GO' },
+  { label: 'Maranhão',            value: 'MA' },
+  { label: 'Mato Grosso',         value: 'MT' },
+  { label: 'Mato Grosso do Sul',  value: 'MS' },
+  { label: 'Minas Gerais',        value: 'MG' },
+  { label: 'Pará',                value: 'PA' },
+  { label: 'Paraíba',             value: 'PB' },
+  { label: 'Paraná',              value: 'PR' },
+  { label: 'Pernambuco',          value: 'PE' },
+  { label: 'Piauí',               value: 'PI' },
+  { label: 'Rio de Janeiro',      value: 'RJ' },
+  { label: 'Rio Grande do Norte', value: 'RN' },
+  { label: 'Rio Grande do Sul',   value: 'RS' },
+  { label: 'Rondônia',            value: 'RO' },
+  { label: 'Roraima',             value: 'RR' },
+  { label: 'Santa Catarina',      value: 'SC' },
+  { label: 'São Paulo',           value: 'SP' },
+  { label: 'Sergipe',             value: 'SE' },
+  { label: 'Tocantins',           value: 'TO' },
+]
 
-/* ─────────────────────────────────────────────────────────
-   BARRA DE PROGRESSO COM BOLINHAS
-   ───────────────────────────────────────────────────────── */
-function ProgressDots({ step }: { step: number }) {
+type Step = 1 | 2 | 3
+
+/* ─── Progress bar ────────────────────────────────────────── */
+function ProgressDots({ step }: { step: Step }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 40 }}>
-      {[1, 2, 3].map((n, i) => {
-        const done   = n < step
-        const active = n === step
-        return (
-          <div key={n} style={{ display: 'flex', alignItems: 'center' }}>
-            {/* Linha conectora */}
-            {i > 0 && (
-              <div style={{
-                width: 52, height: 2,
-                backgroundColor: done || active ? '#FFD11A' : '#272727',
-                transition: 'background-color 0.35s',
-              }} />
-            )}
-            {/* Bolinha */}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 40 }}>
+      {([1, 2, 3] as Step[]).map((s, i) => (
+        <Fragment key={s}>
+          {i > 0 && (
             <div style={{
-              width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-              backgroundColor: done || active ? '#FFD11A' : '#272727',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'all 0.35s',
-              boxShadow: active ? '0 0 16px rgba(255,209,26,0.5)' : 'none',
-            }}>
-              {done
-                ? <IconCheck />
-                : <span style={{ fontSize: 11, fontWeight: 800, color: active ? '#0F0F0F' : '#555' }}>{n}</span>
-              }
-            </div>
+              width: 40, height: 2,
+              background: step > s - 1 ? '#22C55E' : '#2A2A2A',
+              transition: 'background 0.4s ease',
+            }} />
+          )}
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+            background: step > s ? '#22C55E' : step === s ? '#FFD11A' : '#1E1E1E',
+            border: `2px solid ${step > s ? '#22C55E' : step === s ? '#FFD11A' : '#2A2A2A'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 800,
+            color: step >= s ? '#0F0F0F' : '#444',
+            transition: 'all 0.4s ease',
+            boxShadow: step === s ? '0 0 12px rgba(255,209,26,0.3)' : 'none',
+          }}>
+            {step > s ? '✓' : s}
           </div>
-        )
-      })}
+        </Fragment>
+      ))}
     </div>
   )
 }
 
-/* ─────────────────────────────────────────────────────────
-   MAIN PAGE
-   ───────────────────────────────────────────────────────── */
+/* ─── Input wrapper ───────────────────────────────────────── */
+function InputBox({
+  isFocused,
+  hasError = false,
+  children,
+}: {
+  isFocused: boolean
+  hasError?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      height: 56, background: '#1A1A1A',
+      border: `1.5px solid ${hasError ? '#E24B4A' : isFocused ? '#FFD11A' : '#2E2E2E'}`,
+      borderRadius: 14, padding: '0 16px', gap: 12,
+      transition: 'border-color 0.15s, box-shadow 0.15s',
+      boxShadow: isFocused && !hasError ? '0 0 0 3px rgba(255,209,26,0.08)' : 'none',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+/* ─── Page ────────────────────────────────────────────────── */
 export default function OnboardingPage() {
-  const router   = useRouter()
-  const supabase = createClient()
+  const router = useRouter()
 
-  const [step,     setStep]     = useState(1)
-  const [name,     setName]     = useState('')
-  const [city,     setCity]     = useState('')
-  const [state,    setState_]   = useState('')
-  const [skills,   setSkills]   = useState<string[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [saving,   setSaving]   = useState(false)
-  const [locating, setLocating] = useState(false)
-  const [error,    setError]    = useState<string | null>(null)
-  const [userId,   setUserId]   = useState<string | null>(null)
+  const [step,           setStep]           = useState<Step>(1)
+  const [name,           setName]           = useState('')
+  const [city,           setCity]           = useState('')
+  const [state,          setState]          = useState('')
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const [focused,        setFocused]        = useState<string | null>(null)
+  const [gpsLoading,     setGpsLoading]     = useState(false)
+  const [gpsError,       setGpsError]       = useState('')
+  const [saving,         setSaving]         = useState(false)
+  const [authLoading,    setAuthLoading]    = useState(true)
+  const [animDir,        setAnimDir]        = useState<'forward' | 'back'>('forward')
+  const [visible,        setVisible]        = useState(true)
 
-  /* ── Auth + guard ── */
+  /* ── Auth guard + pre-fill ── */
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { router.push('/login'); return }
-      const uid = data.user.id
-      setUserId(uid)
+    async function init() {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
 
-      const meta = data.user.user_metadata
-      if (meta?.full_name) setName(meta.full_name as string)
-      else if (meta?.name)  setName(meta.name as string)
+      if (!session) { router.push('/login'); return }
 
-      const { data: prof } = await supabase
+      // Pre-fill name from auth metadata
+      const metaName =
+        (session.user.user_metadata?.full_name as string | undefined) ??
+        (session.user.user_metadata?.name    as string | undefined)    ??
+        ''
+      if (metaName) setName(metaName)
+
+      // Check if onboarding already done
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('city, onboarding_completo')
-        .eq('id', uid)
+        .select('onboarding_completo, full_name, city')
+        .eq('id', session.user.id)
         .single()
 
-      if (prof?.city || (prof as Record<string, unknown> | null)?.onboarding_completo) {
-        router.push('/feed')
-        return
-      }
-      setLoading(false)
-    })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+      if (profile?.onboarding_completo) { router.push('/feed'); return }
+      if (profile?.full_name && !metaName) setName(profile.full_name as string)
+
+      setAuthLoading(false)
+    }
+    init()
+  }, [router])
+
+  /* ── Animated step transition ── */
+  function goTo(target: Step, dir: 'forward' | 'back' = 'forward') {
+    setAnimDir(dir)
+    setVisible(false)
+    setTimeout(() => {
+      setStep(target)
+      setVisible(true)
+    }, 180)
+  }
 
   /* ── GPS ── */
-  function useLocation() {
-    if (!navigator.geolocation) return
-    setLocating(true)
+  async function handleGPS() {
+    if (!navigator.geolocation || gpsLoading) return
+    setGpsLoading(true)
+
     navigator.geolocation.getCurrentPosition(
-      async pos => {
+      async (pos) => {
         try {
-          const res  = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=pt`
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=pt-BR`,
+            { headers: { 'User-Agent': 'BikcoAI/1.0 (bikco.com)' } },
           )
-          const data = await res.json() as { address?: { city?: string; town?: string; village?: string; state?: string; country_code?: string } }
-          const addr = data.address || {}
-          setCity(addr.city || addr.town || addr.village || '')
-          if (addr.country_code === 'br' && addr.state) {
-            const match = BR_STATES.find(s => s.label.toLowerCase() === (addr.state ?? '').toLowerCase())
-            if (match) setState_(match.code)
-          }
+          const data = await res.json()
+          const addr = data.address ?? {}
+          const detectedCity  = addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? ''
+          const stateIso      = (addr['ISO3166-2-lvl4'] as string | undefined)?.split('-')[1] ?? ''
+          if (detectedCity) setCity(detectedCity)
+          if (stateIso && STATES.some(s => s.value === stateIso)) setState(stateIso)
         } catch { /* ignore */ }
-        setLocating(false)
+        setGpsLoading(false)
       },
-      () => setLocating(false)
+      () => {
+        setGpsLoading(false)
+        setGpsError('GPS não permitido. Digite sua cidade manualmente.')
+        setTimeout(() => setGpsError(''), 4000)
+      },
+      { timeout: 12000 },
     )
   }
 
-  /* ── Skills toggle ── */
-  function toggleSkill(s: string) {
-    setSkills(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
+  /* ── Toggle skill ── */
+  function toggleSkill(skill: string) {
+    setSelectedSkills(prev =>
+      prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill],
+    )
   }
 
-  /* ── Can advance? ── */
-  const canContinue =
-    step === 1 ? name.trim().length >= 2 :
-    step === 2 ? city.trim().length >= 2 && state !== '' :
-    true // etapa 3 é sempre avançável (pode pular)
-
-  /* ── Salvar ── */
-  async function save(skipSkills = false) {
-    if (!userId) return
+  /* ── Save + redirect ── */
+  async function handleFinish(skipSkills = false) {
+    if (saving) return
     setSaving(true)
-    setError(null)
 
-    const { error: dbErr } = await supabase
-      .from('profiles')
-      .update({ full_name: name.trim(), city: city.trim(), state })
-      .eq('id', userId)
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push('/login'); return }
 
-    if (dbErr) { setSaving(false); setError('Erro ao salvar. Tente novamente.'); return }
-
-    // Tenta salvar habilidades (ignora erro se coluna não existir)
-    if (!skipSkills && skills.length > 0) {
-      await supabase.from('profiles')
-        .update({ skills } as Record<string, unknown>)
-        .eq('id', userId)
-    }
-
-    // Tenta marcar onboarding_completo (ignora erro se coluna não existir)
-    await supabase.from('profiles')
-      .update({ onboarding_completo: true } as Record<string, unknown>)
-      .eq('id', userId)
+    try {
+      await supabase.from('profiles').upsert({
+        id:                  session.user.id,
+        full_name:           name.trim(),
+        city:                city.trim(),
+        state:               state || null,
+        skills:              skipSkills ? [] : selectedSkills,
+        onboarding_completo: true,
+        updated_at:          new Date().toISOString(),
+      })
+    } catch { /* if column doesn't exist, ignore */ }
 
     router.push('/feed')
   }
 
-  function handleNext() {
-    if (!canContinue) return
-    if (step < 3) { setStep(s => s + 1); setError(null) }
-    else save()
+  /* ── Loading / auth check ── */
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: '100dvh', backgroundColor: '#0F0F0F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 32, height: 32, border: '3px solid #1E1E1E', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
   }
 
-  /* ─── Estilos base ─── */
-  const inputStyle: React.CSSProperties = {
-    width: '100%', boxSizing: 'border-box',
-    height: 56, backgroundColor: '#171717',
-    border: '1.5px solid #272727', borderRadius: 14,
-    color: '#fff', fontSize: 15, padding: '0 16px',
-    fontFamily: 'inherit', outline: 'none',
-    transition: 'border-color 0.15s, box-shadow 0.15s',
+  /* ─────────────────────────────────────────────────────── */
+  /*  RENDER                                                 */
+  /* ─────────────────────────────────────────────────────── */
+  const slideStyle: React.CSSProperties = {
+    opacity:   visible ? 1 : 0,
+    transform: visible
+      ? 'translateX(0)'
+      : animDir === 'forward'
+        ? 'translateX(24px)'
+        : 'translateX(-24px)',
+    transition: 'opacity 0.18s ease, transform 0.18s ease',
   }
 
-  /* ─── Spinner ─── */
-  if (loading) return (
-    <div style={{ backgroundColor: '#0F0F0F', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 36, height: 36, border: '3px solid #1e1e1e', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
-
-  /* ─────────────── RENDER ─────────────── */
   return (
-    <div style={{ backgroundColor: '#0F0F0F', minHeight: '100vh', display: 'flex', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
-      <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', padding: '0 0 48px' }}>
+    <div style={{
+      minHeight: '100dvh',
+      backgroundColor: '#0F0F0F',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      color: '#fff',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '24px 20px 48px',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
 
-        {/* Logo */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 24px 28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Image src="/pato-icon.svg" alt="pato" width={30} height={30} />
-            <span style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: '-0.6px' }}>
-              pato<span style={{ color: '#FFD11A' }}>.ai</span>
+      {/* Decorative pato */}
+      <img src="/pato-icon.svg" alt="" aria-hidden style={{
+        position: 'absolute', bottom: -40, right: -60,
+        width: 320, height: 320, opacity: 0.04,
+        pointerEvents: 'none', userSelect: 'none',
+      }} />
+
+      <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+          {step > 1 ? (
+            <button
+              onClick={() => goTo((step - 1) as Step, 'back')}
+              style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
+              </svg>
+              Voltar
+            </button>
+          ) : <div style={{ width: 60 }} />}
+
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: 'linear-gradient(135deg, #FFD11A, #FF9500)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Image src="/pato-icon.svg" alt="Bikco" width={18} height={18} />
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-0.3px' }}>
+              bikco<span style={{ color: '#FFD11A' }}>.com</span>
             </span>
           </div>
+
+          {/* Pular (only step 3) */}
+          {step === 3 ? (
+            <button
+              onClick={() => handleFinish(true)}
+              style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 13, padding: 4 }}
+            >
+              Pular
+            </button>
+          ) : <div style={{ width: 60 }} />}
         </div>
 
-        {/* Bolinhas de progresso */}
+        {/* ── Progress dots ── */}
         <ProgressDots step={step} />
 
-        {/* Conteúdo */}
-        <div style={{ padding: '0 24px', flex: 1 }}>
+        {/* ── Animated step content ── */}
+        <div style={{ flex: 1, ...slideStyle }}>
 
-          {/* ══ ETAPA 1 — Nome ══ */}
+          {/* ══════════ STEP 1 ══════════ */}
           {step === 1 && (
-            <>
-              <h1 style={{ margin: '0 0 10px', lineHeight: 1.15 }}>
-                <span style={{ display: 'block', fontSize: 30, fontWeight: 900, color: '#fff', letterSpacing: '-0.8px' }}>Como você quer</span>
-                <span style={{ display: 'block', fontSize: 30, fontWeight: 900, color: '#FFD11A', letterSpacing: '-0.8px', fontStyle: 'italic' }}>ser chamado?</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ fontSize: 56, marginBottom: 20 }}>👤</div>
+              <h1 style={{ fontSize: 24, fontWeight: 900, textAlign: 'center', margin: '0 0 8px', letterSpacing: '-0.4px' }}>
+                Como você quer<br />ser chamado?
               </h1>
-              <p style={{ margin: '0 0 28px', fontSize: 14, color: '#555', lineHeight: 1.5 }}>
-                Seu nome aparece no feed para outros usuários.
+              <p style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 36, lineHeight: 1.6 }}>
+                Seu nome aparece para outros usuários
               </p>
 
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                Nome completo
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleNext()}
-                placeholder="ex: João Silva"
-                autoFocus
-                style={inputStyle}
-                onFocus={e => { e.target.style.borderColor = '#FFD11A'; e.target.style.boxShadow = '0 0 0 3px rgba(255,209,26,0.1)' }}
-                onBlur={e  => { e.target.style.borderColor = '#272727'; e.target.style.boxShadow = 'none' }}
-              />
-            </>
-          )}
-
-          {/* ══ ETAPA 2 — Localização ══ */}
-          {step === 2 && (
-            <>
-              <h1 style={{ margin: '0 0 10px', lineHeight: 1.15 }}>
-                <span style={{ display: 'block', fontSize: 30, fontWeight: 900, color: '#fff', letterSpacing: '-0.8px' }}>Onde você</span>
-                <span style={{ display: 'block', fontSize: 30, fontWeight: 900, color: '#FFD11A', letterSpacing: '-0.8px', fontStyle: 'italic' }}>está?</span>
-              </h1>
-              <p style={{ margin: '0 0 22px', fontSize: 14, color: '#555', lineHeight: 1.5 }}>
-                Para mostrar serviços perto de você.
-              </p>
-
-              {/* GPS */}
-              <button
-                type="button"
-                onClick={useLocation}
-                disabled={locating}
-                style={{
-                  width: '100%', height: 48, borderRadius: 14,
-                  border: '1.5px solid #272727', backgroundColor: '#171717',
-                  color: locating ? '#444' : '#aaa', fontSize: 14, fontWeight: 600,
-                  cursor: locating ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  marginBottom: 16, fontFamily: 'inherit', transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (!locating) { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.color = '#fff' } }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#272727'; e.currentTarget.style.color = '#aaa' }}
-              >
-                <IconGPS />
-                {locating ? 'Obtendo localização…' : 'Usar minha localização atual'}
-              </button>
-
-              {/* Divisor */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                <div style={{ flex: 1, height: 1, backgroundColor: '#1e1e1e' }} />
-                <span style={{ fontSize: 10, color: '#333', fontWeight: 700, letterSpacing: '0.08em' }}>OU PREENCHA</span>
-                <div style={{ flex: 1, height: 1, backgroundColor: '#1e1e1e' }} />
+              <div style={{ width: '100%', marginBottom: 20 }}>
+                <InputBox isFocused={focused === 'name'}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={focused === 'name' ? '#FFD11A' : '#555'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s' }}>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    onFocus={() => setFocused('name')}
+                    onBlur={() => setFocused(null)}
+                    onKeyDown={e => e.key === 'Enter' && name.trim().length >= 2 && goTo(2)}
+                    placeholder="Ex: Maria Souza"
+                    autoFocus
+                    autoComplete="name"
+                    style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 16 }}
+                  />
+                </InputBox>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Cidade */}
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Cidade</label>
+              <button
+                onClick={() => goTo(2)}
+                disabled={name.trim().length < 2}
+                style={{
+                  width: '100%', height: 56, borderRadius: 14, border: 'none',
+                  background: name.trim().length >= 2
+                    ? 'linear-gradient(135deg, #FFD11A, #FF9500)'
+                    : '#1A1A1A',
+                  color: name.trim().length >= 2 ? '#0F0F0F' : '#444',
+                  fontSize: 15, fontWeight: 800,
+                  cursor: name.trim().length >= 2 ? 'pointer' : 'not-allowed',
+                  boxShadow: name.trim().length >= 2 ? '0 4px 18px rgba(255,209,26,0.25)' : 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Continuar →
+              </button>
+            </div>
+          )}
+
+          {/* ══════════ STEP 2 ══════════ */}
+          {step === 2 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ fontSize: 56, marginBottom: 20 }}>📍</div>
+              <h1 style={{ fontSize: 24, fontWeight: 900, textAlign: 'center', margin: '0 0 8px', letterSpacing: '-0.4px' }}>
+                Onde você está?
+              </h1>
+              <p style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 36, lineHeight: 1.6 }}>
+                Para mostrar profissionais perto de você
+              </p>
+
+              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                {/* City */}
+                <InputBox isFocused={focused === 'city'}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused === 'city' ? '#FFD11A' : '#555'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s' }}>
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
                   <input
                     type="text"
                     value={city}
                     onChange={e => setCity(e.target.value)}
-                    placeholder="ex: São Paulo"
-                    autoFocus
-                    style={inputStyle}
-                    onFocus={e => { e.target.style.borderColor = '#FFD11A'; e.target.style.boxShadow = '0 0 0 3px rgba(255,209,26,0.1)' }}
-                    onBlur={e  => { e.target.style.borderColor = '#272727'; e.target.style.boxShadow = 'none' }}
+                    onFocus={() => setFocused('city')}
+                    onBlur={() => setFocused(null)}
+                    placeholder="Cidade"
+                    autoComplete="address-level2"
+                    style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 15 }}
                   />
-                </div>
+                </InputBox>
 
-                {/* Estado / País */}
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Estado / País</label>
-                  <select
-                    value={state}
-                    onChange={e => setState_(e.target.value)}
-                    style={{
-                      ...inputStyle,
-                      color: state ? '#fff' : '#444',
-                      cursor: 'pointer',
-                      appearance: 'none',
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='7' viewBox='0 0 12 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23555' strokeWidth='1.8' strokeLinecap='round' strokeLinejoin='round'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 16px center',
-                      paddingRight: 44,
-                    }}
-                    onFocus={e => { e.target.style.borderColor = '#FFD11A'; e.target.style.boxShadow = '0 0 0 3px rgba(255,209,26,0.1)' }}
-                    onBlur={e  => { e.target.style.borderColor = '#272727'; e.target.style.boxShadow = 'none' }}
-                  >
-                    <option value="" disabled style={{ backgroundColor: '#1a1a1a', color: '#555' }}>Selecione</option>
-                    <optgroup label="── Brasil ─────────────" style={{ backgroundColor: '#1a1a1a' }}>
-                      {BR_STATES.map(s => (
-                        <option key={s.code} value={s.code} style={{ backgroundColor: '#1a1a1a' }}>
-                          {s.label} ({s.code})
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="── Mundo ──────────────" style={{ backgroundColor: '#1a1a1a' }}>
-                      {WORLD.map(s => (
-                        <option key={s.code} value={s.code} style={{ backgroundColor: '#1a1a1a' }}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ══ ETAPA 3 — Habilidades ══ */}
-          {step === 3 && (
-            <>
-              <h1 style={{ margin: '0 0 10px', lineHeight: 1.15 }}>
-                <span style={{ display: 'block', fontSize: 30, fontWeight: 900, color: '#fff', letterSpacing: '-0.8px' }}>O que você</span>
-                <span style={{ display: 'block', fontSize: 30, fontWeight: 900, color: '#FFD11A', letterSpacing: '-0.8px', fontStyle: 'italic' }}>sabe fazer?</span>
-              </h1>
-              <p style={{ margin: '0 0 24px', fontSize: 14, color: '#555', lineHeight: 1.5 }}>
-                Isso ajuda o Pato AI a mostrar bicos relevantes para você.
-              </p>
-
-              {/* Chips */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {SKILLS.map(skill => {
-                  const sel = skills.includes(skill)
-                  return (
-                    <button
-                      key={skill}
-                      type="button"
-                      onClick={() => toggleSkill(skill)}
+                {/* State dropdown */}
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    height: 56, background: '#1A1A1A',
+                    border: `1.5px solid ${focused === 'state' ? '#FFD11A' : '#2E2E2E'}`,
+                    borderRadius: 14,
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                    boxShadow: focused === 'state' ? '0 0 0 3px rgba(255,209,26,0.08)' : 'none',
+                    overflow: 'hidden',
+                  }}>
+                    <select
+                      value={state}
+                      onChange={e => setState(e.target.value)}
+                      onFocus={() => setFocused('state')}
+                      onBlur={() => setFocused(null)}
                       style={{
-                        padding: '9px 14px',
-                        borderRadius: 100,
-                        border: `1.5px solid ${sel ? '#FFD11A' : '#2a2a2a'}`,
-                        backgroundColor: sel ? '#1A1A00' : '#141414',
-                        color: sel ? '#FFD11A' : '#888',
-                        fontSize: 13, fontWeight: sel ? 700 : 500,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        transition: 'all 0.15s',
-                        display: 'flex', alignItems: 'center', gap: 4,
+                        width: '100%', height: '100%',
+                        background: 'transparent', border: 'none', outline: 'none',
+                        color: state ? '#fff' : '#444', fontSize: 15,
+                        padding: '0 40px 0 16px',
+                        cursor: 'pointer',
+                        appearance: 'none',
                       }}
                     >
-                      {skill}
+                      <option value="" disabled style={{ background: '#1A1A1A' }}>Estado</option>
+                      {STATES.map(s => (
+                        <option key={s.value} value={s.value} style={{ background: '#1A1A1A' }}>
+                          {s.label} ({s.value})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Chevron */}
+                  <svg style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+
+                {/* GPS button */}
+                <button
+                  onClick={handleGPS}
+                  disabled={gpsLoading}
+                  style={{
+                    height: 50, borderRadius: 14, border: '1px solid #2E2E2E',
+                    background: '#1A1A1A', color: '#aaa',
+                    fontSize: 14, fontWeight: 600, cursor: gpsLoading ? 'wait' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!gpsLoading) { e.currentTarget.style.borderColor = '#FFD11A44'; e.currentTarget.style.color = '#FFD11A' } }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#2E2E2E'; e.currentTarget.style.color = '#aaa' }}
+                >
+                  {gpsLoading ? (
+                    <>
+                      <div style={{ width: 16, height: 16, border: '2.5px solid #333', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                      Detectando localização...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                      </svg>
+                      Usar minha localização
+                    </>
+                  )}
+                </button>
+
+                {/* GPS error feedback */}
+                {gpsError && (
+                  <p style={{ fontSize: 12, color: '#f87171', marginTop: 8, textAlign: 'center' }}>
+                    📍 {gpsError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={() => goTo(3)}
+                disabled={!city.trim()}
+                style={{
+                  width: '100%', height: 56, borderRadius: 14, border: 'none',
+                  background: city.trim()
+                    ? 'linear-gradient(135deg, #FFD11A, #FF9500)'
+                    : '#1A1A1A',
+                  color: city.trim() ? '#0F0F0F' : '#444',
+                  fontSize: 15, fontWeight: 800,
+                  cursor: city.trim() ? 'pointer' : 'not-allowed',
+                  boxShadow: city.trim() ? '0 4px 18px rgba(255,209,26,0.25)' : 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Continuar →
+              </button>
+            </div>
+          )}
+
+          {/* ══════════ STEP 3 ══════════ */}
+          {step === 3 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ fontSize: 56, marginBottom: 20 }}>⚡</div>
+              <h1 style={{ fontSize: 24, fontWeight: 900, textAlign: 'center', margin: '0 0 8px', letterSpacing: '-0.4px' }}>
+                O que você<br />sabe fazer?
+              </h1>
+              <p style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 8, lineHeight: 1.6 }}>
+                Isso ajuda a Bikco a mostrar oportunidades para você
+              </p>
+              <p style={{ fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 28 }}>
+                Pode escolher mais de um · Opcional
+              </p>
+
+              {/* Skills grid */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 32, width: '100%' }}>
+                {SKILLS.map(skill => {
+                  const active = selectedSkills.includes(skill.label)
+                  return (
+                    <button
+                      key={skill.label}
+                      onClick={() => toggleSkill(skill.label)}
+                      style={{
+                        height: 40, borderRadius: 99,
+                        border: `1.5px solid ${active ? '#FFD11A' : '#2A2A2A'}`,
+                        background: active ? '#FFD11A' : '#1A1A1A',
+                        color: active ? '#0F0F0F' : '#888',
+                        fontSize: 13, fontWeight: active ? 700 : 500,
+                        cursor: 'pointer', padding: '0 14px',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        transition: 'all 0.15s',
+                        boxShadow: active ? '0 2px 10px rgba(255,209,26,0.2)' : 'none',
+                      }}
+                    >
+                      <span style={{ fontSize: 15 }}>{skill.icon}</span>
+                      {skill.label}
                     </button>
                   )
                 })}
               </div>
 
-              {skills.length > 0 && (
-                <p style={{ margin: '16px 0 0', fontSize: 12, color: '#555' }}>
-                  {skills.length} selecionada{skills.length > 1 ? 's' : ''} ✓
-                </p>
-              )}
-            </>
-          )}
+              {/* CTA buttons */}
+              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  onClick={() => handleFinish(false)}
+                  disabled={saving}
+                  style={{
+                    height: 58, borderRadius: 14, border: 'none',
+                    background: 'linear-gradient(135deg, #FFD11A, #FF9500)',
+                    color: '#0F0F0F', fontSize: 16, fontWeight: 800, cursor: saving ? 'wait' : 'pointer',
+                    boxShadow: '0 4px 20px rgba(255,209,26,0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.92')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                >
+                  {saving ? (
+                    <div style={{ width: 20, height: 20, border: '3px solid rgba(0,0,0,0.2)', borderTopColor: '#0F0F0F', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  ) : (
+                    <>Entrar na Bikco 🦆</>
+                  )}
+                </button>
 
-          {/* Erro */}
-          {error && (
-            <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 12, backgroundColor: '#1f0808', border: '1.5px solid #5c1a1a', color: '#f87171', fontSize: 13 }}>
-              {error}
+                <button
+                  onClick={() => handleFinish(true)}
+                  disabled={saving}
+                  style={{
+                    height: 46, borderRadius: 14, border: 'none',
+                    background: 'none', color: '#555',
+                    fontSize: 14, fontWeight: 500, cursor: saving ? 'wait' : 'pointer',
+                    transition: 'color 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#888')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#555')}
+                >
+                  Pular por agora
+                </button>
+              </div>
+
             </div>
           )}
         </div>
 
-        {/* ── Botões ── */}
-        <div style={{ padding: '32px 24px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-          {/* CTA principal */}
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={!canContinue || saving}
-            style={{
-              height: 56, borderRadius: 14, border: 'none',
-              backgroundColor: canContinue && !saving ? '#FFD11A' : '#1a1a00',
-              color: canContinue && !saving ? '#0F0F0F' : '#3a3a00',
-              fontSize: 16, fontWeight: 800, letterSpacing: '-0.2px',
-              cursor: canContinue && !saving ? 'pointer' : 'not-allowed',
-              fontFamily: 'inherit', transition: 'all 0.2s',
-            }}
-          >
-            {saving ? 'Salvando…' : step === 3 ? 'Entrar no Pato AI 🦆' : 'Continuar →'}
-          </button>
-
-          {/* Pular (apenas etapa 3) */}
-          {step === 3 && !saving && (
-            <button
-              type="button"
-              onClick={() => save(true)}
-              style={{
-                height: 44, borderRadius: 12, border: 'none',
-                backgroundColor: 'transparent',
-                color: '#444', fontSize: 14, fontWeight: 500,
-                cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'color 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = '#888'}
-              onMouseLeave={e => e.currentTarget.style.color = '#444'}
-            >
-              Pular por agora
-            </button>
-          )}
-
-          {/* Voltar (etapas 2 e 3) */}
-          {step > 1 && !saving && (
-            <button
-              type="button"
-              onClick={() => { setStep(s => s - 1); setError(null) }}
-              style={{
-                height: 44, borderRadius: 12, border: 'none',
-                backgroundColor: 'transparent',
-                color: '#333', fontSize: 14, fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontFamily: 'inherit', transition: 'color 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = '#666'}
-              onMouseLeave={e => e.currentTarget.style.color = '#333'}
-            >
-              <IconArrowLeft /> Voltar
-            </button>
-          )}
-
-        </div>
+        {/* Step counter bottom */}
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#333', marginTop: 24, fontWeight: 500 }}>
+          Etapa {step} de 3
+        </p>
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        input::placeholder  { color: #444; }
+        select option       { background: #1A1A1A; color: #fff; }
         * { box-sizing: border-box; }
-        body { margin: 0; }
-        select option { background-color: #1a1a1a; color: #fff; }
-        @keyframes spin { to { transform: rotate(360deg) } }
+        ::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   )

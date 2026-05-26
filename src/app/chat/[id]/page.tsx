@@ -3,638 +3,369 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { dbg } from '@/components/DebugOverlay'
 
-/* ─── Types ──────────────────────────────────────────────── */
-interface Profile {
-  id: string
-  full_name: string | null
-  avatar_url: string | null
-  seal: string | null
-  score: number | null
+/* ─── Types ───────────────────────────────────────────────── */
+interface Conversa {
+  id: string; post_id: string | null
+  user1_id: string; user2_id: string
+  status: string; valor_combinado: number | null
 }
-
-interface ChatRow {
-  id: string
-  post_id: string
-  contratante_id: string
-  prestador_id: string
-  candidatura_id: string | null
-}
-
-interface PostRow {
-  id: string
-  title: string
-  urgency: string | null
-  budget_min: number | null
-  budget_max: number | null
-  status: string
-}
-
-interface CandidaturaRow {
-  id: string
-  valor: number | null
-  tipo: string | null
-  status: string
-}
-
 interface Mensagem {
-  id: string
-  content: string
-  created_at: string
-  sender_id: string | null
-  remetente_id: string | null   // legacy alias
-  tipo: string | null
-  type: string | null           // legacy alias
-  lida: boolean
-  chat_id?: string | null
-  conversa_id?: string | null
+  id: string; conversa_id: string; sender_id: string
+  content: string; type: 'text' | 'image' | 'system'
+  photo_url: string | null; created_at: string
+}
+interface OtherUser { id: string; full_name: string; avatar_url: string | null }
+interface PostInfo  { id: string; title: string }
+
+/* ─── Helpers ─────────────────────────────────────────────── */
+const initials = (n: string) => n.split(' ').slice(0,2).map(w=>w[0]??'').join('').toUpperCase()
+const fmtTime  = (d: string) => new Date(d).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+const fmtDay   = (d: string) => {
+  const t = new Date(d), now = new Date()
+  const yest = new Date(now); yest.setDate(yest.getDate()-1)
+  if (t.toDateString()===now.toDateString())  return 'Hoje'
+  if (t.toDateString()===yest.toDateString()) return 'Ontem'
+  return t.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})
 }
 
-/* ─── Helpers ────────────────────────────────────────────── */
-const AVATAR_COLORS = ['#E74C3C','#9B59B6','#3498DB','#1ABC9C','#F39C12','#E67E22','#2ECC71','#E91E8C']
-function avatarColor(n: string) { let h = 0; for (const c of n) h = c.charCodeAt(0) + ((h << 5) - h); return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length] }
-function initials(n: string) { return (n || '?').split(' ').slice(0, 2).map(x => x[0]).join('').toUpperCase() }
+/* ─── Bubble ──────────────────────────────────────────────── */
+function Bubble({ msg, isMe, other }: { msg: Mensagem; isMe: boolean; other: OtherUser | null }) {
+  if (msg.type === 'system') return (
+    <div style={{display:'flex',justifyContent:'center',margin:'6px 0'}}>
+      <span style={{background:'#1e1e1e',color:'#666',fontSize:12,borderRadius:99,padding:'3px 12px'}}>{msg.content}</span>
+    </div>
+  )
 
-function formatTime(iso: string) {
-  const d = new Date(iso)
-  const now = new Date()
-  const isToday = d.toDateString() === now.toDateString()
-  if (isToday) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-}
-
-function timeAgo(iso: string) {
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (m < 1) return 'agora'; if (m < 60) return `${m}m`
-  const h = Math.floor(m / 60); if (h < 24) return `${h}h`
-  return `${Math.floor(h / 24)}d`
-}
-
-function fmt(v: number) { return v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) }
-
-function isSystemMsg(m: Mensagem) {
-  const tipo = m.tipo || m.type
-  return tipo === 'sistema' || tipo === 'system' || m.content.startsWith('🦆') || m.content.startsWith('📋') || m.content.startsWith('✅')
-}
-
-function getSenderId(m: Mensagem) { return m.sender_id || m.remetente_id || '' }
-
-function formatContent(text: string) {
-  return text.split('\n').map((line, i) => {
-    const parts = line.split(/\*([^*]+)\*/)
-    return (
-      <div key={i} style={{ minHeight: line === '' ? 6 : undefined }}>
-        {parts.map((p, j) => j % 2 === 1
-          ? <strong key={j} style={{ fontWeight: 800 }}>{p}</strong>
-          : <span key={j}>{p}</span>
-        )}
-      </div>
-    )
-  })
-}
-
-const SEAL_COLOR: Record<string, string> = { ouro: '#FFD11A', prata: '#C0C0C0', bronze: '#CD7F32' }
-const SEAL_LABEL: Record<string, string> = { ouro: 'OURO', prata: 'PRATA', bronze: 'BRONZE' }
-
-const URGENCY_MAP: Record<string, { label: string; color: string }> = {
-  hoje:       { label: '🔴 Hoje',        color: '#FF4D6A' },
-  semana:     { label: '🟠 Esta semana', color: '#FF7A1A' },
-  sem_pressa: { label: '⬛ Sem pressa',  color: '#888' },
-}
-
-const TIPO_LABEL: Record<string, string> = { fixo: 'Valor fixo', hora: 'Por hora', visita: 'Visita técnica' }
-
-/* ─── Sub-components ─────────────────────────────────────── */
-function Avatar({ src, name, size = 38 }: { src: string | null; name: string | null; size?: number }) {
-  const n = name || '?'
-  if (src) return <img src={src} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: avatarColor(n), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.35, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-      {initials(n)}
+    <div style={{display:'flex',flexDirection:isMe?'row-reverse':'row',alignItems:'flex-end',gap:6,marginBottom:8}}>
+      {!isMe && (
+        other?.avatar_url
+          ? <img src={other.avatar_url} alt="" style={{width:26,height:26,borderRadius:8,objectFit:'cover',flexShrink:0,border:'1px solid #2a2a2a'}}/>
+          : <div style={{width:26,height:26,borderRadius:8,flexShrink:0,background:'#222',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#FFD11A'}}>{other?initials(other.full_name):'?'}</div>
+      )}
+      <div style={{maxWidth:'72%',display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:2}}>
+        {msg.type==='image'&&msg.photo_url&&(
+          <img src={msg.photo_url} alt="" style={{maxWidth:'100%',maxHeight:200,objectFit:'cover',borderRadius:12}}/>
+        )}
+        {msg.content&&(
+          <div style={{padding:'9px 13px',background:isMe?'#FFD11A':'#1e1e1e',color:isMe?'#0f0f0f':'#fff',borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',fontSize:14,lineHeight:1.45,wordBreak:'break-word'}}>
+            {msg.content}
+          </div>
+        )}
+        <span style={{fontSize:10,color:'#444'}}>{fmtTime(msg.created_at)}</span>
+      </div>
     </div>
   )
 }
 
-/* ─── Main Page ──────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════ */
 export default function ChatPage() {
-  const router   = useRouter()
-  const params   = useParams()
-  const chatId   = params.id as string
-  const supabase = createClient()
+  const router = useRouter()
+  const params = useParams()
+  const rawId  = Array.isArray(params.id) ? params.id[0] : (params.id as string)
 
-  const [chat,        setChat]        = useState<ChatRow | null>(null)
-  const [post,        setPost]        = useState<PostRow | null>(null)
-  const [candidatura, setCandidatura] = useState<CandidaturaRow | null>(null)
-  const [otherUser,   setOtherUser]   = useState<Profile | null>(null)
-  const [myProfile,   setMyProfile]   = useState<Profile | null>(null)
-  const [mensagens,   setMensagens]   = useState<Mensagem[]>([])
-  const [userId,      setUserId]      = useState<string | null>(null)
-  const [loading,     setLoading]     = useState(true)
-  const [text,        setText]        = useState('')
-  const [sending,     setSending]     = useState(false)
-  const [hasContract, setHasContract] = useState(false)
-  const [showInfo,    setShowInfo]    = useState(false)
-  const [uploading,   setUploading]   = useState(false)
-  const [chatTable,   setChatTable]   = useState<'chats' | 'conversas'>('conversas')
-  const [msgIdField,  setMsgIdField]  = useState<'chat_id' | 'conversa_id'>('conversa_id')
-  const [debugMsg,    setDebugMsg]    = useState<string | null>(null)
+  const [conv,         setConv]         = useState<Conversa | null>(null)
+  const [other,        setOther]        = useState<OtherUser | null>(null)
+  const [post,         setPost]         = useState<PostInfo | null>(null)
+  const [messages,     setMessages]     = useState<Mensagem[]>([])
+  const [meId,         setMeId]         = useState<string | null>(null)
+  const [newMsg,       setNewMsg]       = useState('')
+  const [sending,      setSending]      = useState(false)
+  const [uploading,    setUploading]    = useState(false)
+  const [status,       setStatus]       = useState<'loading'|'error'|'ok'>('loading')
+  const [dealValue,    setDealValue]    = useState('')
+  const [showDeal,     setShowDeal]     = useState(false)
+  const [toast,        setToast]        = useState('')
 
-  const bottomRef  = useRef<HTMLDivElement>(null)
-  const userIdRef  = useRef<string | null>(null)
-  const chatRef    = useRef<ChatRow | null>(null)
-  const fileRef    = useRef<HTMLInputElement>(null)
+  const bottomRef   = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef     = useRef<HTMLInputElement>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef  = useRef<any>(null)
 
-  /* ── Scroll to bottom ── */
+  const toast$ = (msg: string) => { setToast(msg); setTimeout(()=>setToast(''), 3000) }
+
+  /* ── Auto-scroll ── */
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  /* ── Init — todas as queries em paralelo ── */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [mensagens])
+    async function init() {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
+      const uid = session.user.id
+      setMeId(uid)
 
-  /* ── Fetch messages ── */
-  const fetchMessages = useCallback(async (_idField?: 'chat_id' | 'conversa_id') => {
-    const uid = userIdRef.current
-    const { data } = await supabase
-      .from('mensagens')
-      .select('id, content, created_at, sender_id, remetente_id, tipo, type, lida')
-      .eq('conversa_id', chatId)
-      .order('created_at', { ascending: true })
+      /* 1 — Resolve conversa */
+      const { data: byId } = await supabase.from('conversas').select('*').eq('id', rawId).maybeSingle()
+      let cv: Conversa | null = null
 
-    if (data) setMensagens(data as Mensagem[])
-
-    // Marca como lida (tenta os dois campos de remetente)
-    if (uid) {
-      await supabase.from('mensagens')
-        .update({ lida: true })
-        .eq('conversa_id', chatId)
-        .or(`remetente_id.neq.${uid},sender_id.neq.${uid}`)
-        .eq('lida', false)
-    }
-  }, [chatId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ── Initial load ── */
-  useEffect(() => {
-    console.log('[ChatPage] useEffect fired, chatId=', chatId)
-    dbg('info', `[ChatPage] iniciando carregamento chatId=${chatId}`)
-
-    async function load() {
-      try {
-        // ── Auth ──────────────────────────────────────────────
-        // Tenta getSession() primeiro (lê do localStorage, sem rede)
-        const { data: sessData } = await supabase.auth.getSession()
-        const sessionUser = sessData?.session?.user ?? null
-
-        // Se sessão local existe, usa diretamente. Senão tenta getUser() (rede)
-        let uid: string | null = sessionUser?.id ?? null
-
-        if (!uid) {
-          const { data: authData, error: authErr } = await supabase.auth.getUser()
-          uid = authData?.user?.id ?? null
-          dbg(authErr ? 'error' : 'info', `getUser (fallback): uid=${uid ?? 'null'} err=${authErr?.message ?? 'ok'}`)
+      if (byId) {
+        if (byId.user1_id !== uid && byId.user2_id !== uid) { setStatus('error'); return }
+        cv = byId as Conversa
+      } else {
+        const { data: existing } = await supabase.from('conversas').select('*')
+          .or(`and(user1_id.eq.${uid},user2_id.eq.${rawId}),and(user1_id.eq.${rawId},user2_id.eq.${uid})`)
+          .maybeSingle()
+        if (existing) {
+          cv = existing as Conversa
         } else {
-          dbg('info', `getSession OK: uid=${uid}`)
+          const { data: created } = await supabase.from('conversas')
+            .insert({ user1_id: uid, user2_id: rawId, status: 'ativa' }).select().single()
+          if (created) cv = created as Conversa
         }
-
-        console.log('[ChatPage] uid =>', uid)
-
-        if (!uid) {
-          // Sem sessão — NÃO redireciona para /login — mostra debug
-          const msg = `SEM SESSÃO\nchatId: ${chatId}\n\nSua sessão expirou. Volte e faça login novamente.`
-          dbg('error', msg)
-          setDebugMsg(msg)
-          setLoading(false)
-          return
-        }
-        setUserId(uid)
-        userIdRef.current = uid
-
-        // ── Busca conversa ───────────────────────────────────
-        dbg('info', `buscando conversas para uid=${uid}`)
-        const { data: allConvs, error: convsErr } = await supabase
-          .from('conversas')
-          .select('id, post_id, contratante_id, prestador_id')
-          .or(`contratante_id.eq.${uid},prestador_id.eq.${uid}`)
-
-        console.log('[ChatPage] allConvs =>', allConvs?.length, convsErr?.message)
-        dbg(convsErr ? 'error' : 'info',
-          convsErr
-            ? `conversas query error: ${convsErr.message} (${convsErr.code})`
-            : `conversas: ${allConvs?.length ?? 0} linhas | ids: ${allConvs?.map(c=>c.id.slice(0,8)).join(', ')}`
-        )
-
-        const conv = allConvs?.find(c => c.id === chatId) ?? null
-        console.log('[ChatPage] conv found =>', conv?.id)
-        dbg(conv ? 'info' : 'warn', conv ? `conversa encontrada: ${conv.id}` : `conversa NÃO encontrada. chatId=${chatId}`)
-
-        if (!conv) {
-          const msg = `CONVERSA NÃO ENCONTRADA\nchatId: ${chatId}\nusuário: ${uid}\nconversas carregadas: ${allConvs?.length ?? 0}\nerro query: ${convsErr?.message ?? 'nenhum'}`
-          dbg('error', msg)
-          setDebugMsg(msg)
-          setLoading(false)
-          return
-        }
-
-        const chatRow: ChatRow = { ...conv, candidatura_id: null }
-
-        // Auth guard
-        if (chatRow.contratante_id !== uid && chatRow.prestador_id !== uid) {
-          const msg = `ACESSO NEGADO\ncontratante: ${chatRow.contratante_id}\nprestador: ${chatRow.prestador_id}\nusuário: ${uid}`
-          dbg('error', msg)
-          setDebugMsg(msg)
-          setLoading(false)
-          return
-        }
-
-        setChat(chatRow)
-        chatRef.current = chatRow
-
-        // Load post
-        if (chatRow.post_id) {
-          const { data: p } = await supabase.from('posts').select('id, title, urgency, budget_min, budget_max, status').eq('id', chatRow.post_id).single()
-          if (p) setPost(p as PostRow)
-        }
-
-        // Load candidatura (for proposal value)
-        if (chatRow.candidatura_id) {
-          const { data: cand } = await supabase.from('candidaturas').select('id, valor, tipo, status').eq('id', chatRow.candidatura_id).single()
-          if (cand) setCandidatura(cand as CandidaturaRow)
-        }
-
-        // Load other user
-        const otherId = chatRow.contratante_id === uid ? chatRow.prestador_id : chatRow.contratante_id
-        const { data: other } = await supabase.from('profiles').select('id, full_name, avatar_url, seal, score').eq('id', otherId).single()
-        if (other) setOtherUser(other as Profile)
-
-        // Load my profile
-        const { data: me } = await supabase.from('profiles').select('id, full_name, avatar_url, seal, score').eq('id', uid).single()
-        if (me) setMyProfile(me as Profile)
-
-        // Check if contract exists
-        const { data: contrato } = await supabase.from('contratos').select('id').eq('chat_id', chatId).maybeSingle()
-        if (contrato) setHasContract(true)
-
-        // Fetch messages
-        await fetchMessages('conversa_id')
-        setLoading(false)
-        dbg('info', `chat carregado OK: ${chatId}`)
-
-      } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : String(err)
-        console.error('[ChatPage] crash:', errMsg)
-        dbg('error', `CRASH no chat: ${errMsg}`)
-        setDebugMsg(`ERRO INESPERADO\n${errMsg}`)
-        setLoading(false)
       }
+
+      if (!cv) { setStatus('error'); return }
+      setConv(cv)
+
+      /* 2 — Busca tudo em paralelo */
+      const otherId = cv.user1_id === uid ? cv.user2_id : cv.user1_id
+      const [profileRes, postRes, msgsRes] = await Promise.all([
+        supabase.from('profiles').select('id,full_name,avatar_url').eq('id', otherId).single(),
+        cv.post_id ? supabase.from('posts').select('id,title').eq('id', cv.post_id).single() : Promise.resolve({ data: null }),
+        supabase.from('mensagens').select('*').eq('conversa_id', cv.id).order('created_at', { ascending: false }).limit(60),
+      ])
+
+      if (profileRes.data) setOther(profileRes.data as OtherUser)
+      if (postRes.data)    setPost(postRes.data as PostInfo)
+      if (msgsRes.data)    setMessages([...msgsRes.data].reverse() as Mensagem[])
+
+      setStatus('ok')
+
+      /* 3 — Realtime */
+      channelRef.current = supabase
+        .channel(`chat-${cv.id}`)
+        .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${cv.id}` },
+          (payload: { new: Mensagem }) => {
+            const m = payload.new
+            setMessages(prev => prev.some(x=>x.id===m.id) ? prev : [...prev, m])
+          })
+        .on('postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'conversas', filter: `id=eq.${cv.id}` },
+          (payload: { new: Partial<Conversa> }) => {
+            setConv(prev => prev ? { ...prev, ...payload.new } : prev)
+          })
+        .subscribe()
     }
 
-    load()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId])
-
-  /* ── Realtime + polling ── */
-  useEffect(() => {
-    if (loading) return
-
-    const channel = supabase
-      .channel(`chat-${chatId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `${msgIdField}=eq.${chatId}` },
-        (payload) => {
-          const nova = payload.new as Mensagem
-          setMensagens(prev => prev.some(m => m.id === nova.id) ? prev : [...prev, nova])
-          if (userIdRef.current && getSenderId(nova) !== userIdRef.current) {
-            supabase.from('mensagens').update({ lida: true }).eq('id', nova.id)
-          }
-        }
-      )
-      .subscribe()
-
-    const poll = setInterval(() => fetchMessages(msgIdField), 5000)
-
-    return () => {
-      supabase.removeChannel(channel)
-      clearInterval(poll)
-    }
-  }, [loading, chatId, msgIdField, fetchMessages]) // eslint-disable-line react-hooks/exhaustive-deps
+    init()
+    return () => { if (channelRef.current) createClient().removeChannel(channelRef.current) }
+  }, [rawId, router])
 
   /* ── Send text ── */
-  async function send() {
-    if (!text.trim() || !userId || sending) return
-    const c = chatRef.current
-    if (!c) return
-
+  const send = useCallback(async () => {
+    const text = newMsg.trim()
+    if (!text || sending || !conv || !meId) return
     setSending(true)
-    const content = text.trim()
-    setText('')
+    setNewMsg('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
-    const payload = {
-      content,
-      sender_id:    userId,   // schema novo
-      remetente_id: userId,   // schema legado
-      conversa_id:  chatId,   // sempre conversa_id
-      tipo: 'texto',
-      lida: false,
+    const supabase = createClient()
+    const optimistic: Mensagem = {
+      id: `tmp-${Date.now()}`, conversa_id: conv.id, sender_id: meId,
+      content: text, type: 'text', photo_url: null, created_at: new Date().toISOString(),
     }
+    setMessages(prev => [...prev, optimistic])
 
-    const { data, error } = await supabase.from('mensagens').insert(payload).select().single()
-    if (!error && data) {
-      setMensagens(prev => prev.some(m => m.id === (data as Mensagem).id) ? prev : [...prev, data as Mensagem])
+    const { data: inserted, error } = await supabase
+      .from('mensagens').insert({ conversa_id: conv.id, sender_id: meId, content: text, type: 'text' })
+      .select().single()
 
-      // Notify other user
-      const otherId = c.contratante_id === userId ? c.prestador_id : c.contratante_id
-      await supabase.from('notificacoes').insert({
-        user_id:   otherId,
-        tipo:      'nova_mensagem',
-        titulo:    `💬 ${myProfile?.full_name || 'Mensagem nova'}`,
-        subtitulo: content.length > 60 ? content.slice(0, 57) + '…' : content,
-        link:      `/chat/${chatId}`,
-        lida:      false,
-      }).then(() => {})
+    if (error || !inserted) {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id))
+      setNewMsg(text)
+    } else {
+      setMessages(prev => prev.map(m => m.id === optimistic.id ? inserted as Mensagem : m))
     }
     setSending(false)
-  }
+  }, [newMsg, sending, conv, meId])
 
   /* ── Send photo ── */
-  async function sendPhoto(file: File) {
-    if (!userId) return
-    const c = chatRef.current
-    if (!c) return
-
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !conv || !meId) return
+    if (file.size > 10 * 1024 * 1024) { toast$('❌ Máximo 10MB'); return }
     setUploading(true)
-    try {
-      const ext = file.name.split('.').pop() ?? 'jpg'
-      const path = `chat/${chatId}/${Date.now()}.${ext}`
-
-      let url: string | null = null
-      for (const bucket of ['chat-media', 'posts-media', 'post-photos']) {
-        const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type })
-        if (!upErr) {
-          const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path)
-          url = pub.publicUrl
-          break
-        }
-      }
-
-      if (!url) { setUploading(false); return }
-
-      const payload = {
-        content:      url,
-        sender_id:    userId,   // schema novo
-        remetente_id: userId,   // schema legado
-        conversa_id:  chatId,   // sempre conversa_id
-        tipo: 'foto',
-        lida: false,
-      }
-
-      const { data } = await supabase.from('mensagens').insert(payload).select().single()
-      if (data) setMensagens(prev => prev.some(m => m.id === (data as Mensagem).id) ? prev : [...prev, data as Mensagem])
-    } catch (e) { console.error(e) }
+    const supabase = createClient()
+    const path = `${conv.id}/${Date.now()}.${file.name.split('.').pop()}`
+    const { data: up, error: upErr } = await supabase.storage.from('chat-media').upload(path, file, { upsert: false })
+    if (upErr) { toast$('❌ Erro ao enviar imagem'); }
+    else if (up) {
+      const { data: { publicUrl } } = supabase.storage.from('chat-media').getPublicUrl(up.path)
+      await supabase.from('mensagens').insert({ conversa_id: conv.id, sender_id: meId, content: '', type: 'image', photo_url: publicUrl })
+    }
     setUploading(false)
+    if (fileRef.current) fileRef.current.value = ''
   }
 
-  /* ── Loading ── */
-  if (loading) return (
-    <div style={{ backgroundColor: '#0F0F0F', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 32, height: 32, border: '3px solid #222', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+  /* ── Close deal ── */
+  async function closeDeal() {
+    const valor = parseFloat(dealValue)
+    if (!valor || !conv || !meId) return
+    setShowDeal(false)
+    const supabase = createClient()
+    await supabase.from('conversas').update({ status: 'acordo_fechado', valor_combinado: valor }).eq('id', conv.id)
+    await supabase.from('mensagens').insert({ conversa_id: conv.id, sender_id: meId, content: `🤝 Acordo fechado — R$ ${valor.toFixed(2).replace('.',',')}`, type: 'system' })
+    setConv(prev => prev ? { ...prev, status: 'acordo_fechado', valor_combinado: valor } : prev)
+    setDealValue('')
+    toast$('✅ Acordo registrado!')
+  }
+
+  /* ─── Loading / Error ─────────────────────────────────── */
+  if (status === 'loading') return (
+    <div style={{minHeight:'100dvh',background:'#0f0f0f',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:32,height:32,border:'3px solid #1e1e1e',borderTopColor:'#FFD11A',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
-  /* ── Debug error screen (em vez de redirecionar silenciosamente) ── */
-  if (debugMsg) return (
-    <div style={{ backgroundColor: '#0F0F0F', minHeight: '100vh', padding: 24, fontFamily: 'monospace' }}>
-      <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#FFD11A', cursor: 'pointer', fontSize: 14, marginBottom: 16 }}>← voltar</button>
-      <h2 style={{ color: '#FF4D6A', fontSize: 16, marginBottom: 12 }}>🔴 Erro ao abrir chat</h2>
-      <pre style={{ color: '#aaa', fontSize: 12, backgroundColor: '#111', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
-        {debugMsg}
-      </pre>
-      <p style={{ color: '#555', fontSize: 11, marginTop: 12 }}>Me envie uma foto desta tela para diagnóstico.</p>
+  if (status === 'error') return (
+    <div style={{minHeight:'100dvh',background:'#0f0f0f',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,color:'#fff',fontFamily:'Inter,sans-serif'}}>
+      <span style={{fontSize:40}}>💬</span>
+      <p style={{fontSize:15,fontWeight:700}}>Conversa não encontrada</p>
+      <button onClick={()=>router.back()} style={{height:44,borderRadius:99,border:'none',background:'#FFD11A',color:'#0f0f0f',fontWeight:800,cursor:'pointer',padding:'0 24px',fontSize:14}}>← Voltar</button>
     </div>
   )
 
-  const urgInfo = post?.urgency ? (URGENCY_MAP[post.urgency] ?? URGENCY_MAP.sem_pressa) : null
+  const dealClosed = conv?.status === 'acordo_fechado'
 
+  /* ─── Group by date ───────────────────────────────────── */
+  const grouped: { date: string; msgs: Mensagem[] }[] = []
+  for (const m of messages) {
+    const d = fmtDay(m.created_at)
+    const last = grouped[grouped.length - 1]
+    if (last?.date === d) last.msgs.push(m)
+    else grouped.push({ date: d, msgs: [m] })
+  }
+
+  /* ─────────────────────────────────────────────────────── */
   return (
-    <div style={{ backgroundColor: '#0F0F0F', height: '100dvh', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
+    <div style={{height:'100dvh',background:'#0f0f0f',fontFamily:'Inter,system-ui,sans-serif',color:'#fff',display:'flex',flexDirection:'column',overflow:'hidden'}}>
 
-      {/* ─── Header ─── */}
-      <div style={{ backgroundColor: '#0F0F0F', borderBottom: '1px solid #1a1a1a', flexShrink: 0, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
-          </svg>
+      {/* ── HEADER ── */}
+      <header style={{flexShrink:0,background:'rgba(10,10,10,0.97)',backdropFilter:'blur(12px)',borderBottom:'1px solid #1a1a1a',padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+        <button onClick={()=>router.back()} style={{background:'none',border:'none',color:'#666',cursor:'pointer',padding:4,display:'flex',flexShrink:0}}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
         </button>
 
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', minWidth: 0 }}>
-          <Avatar src={otherUser?.avatar_url ?? null} name={otherUser?.full_name ?? null} size={36} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {otherUser?.full_name || 'Usuário'}
-              </span>
-              {otherUser?.seal && (
-                <span style={{ fontSize: 9, fontWeight: 800, color: SEAL_COLOR[otherUser.seal], border: `1px solid ${SEAL_COLOR[otherUser.seal]}55`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
-                  {SEAL_LABEL[otherUser.seal]}
-                </span>
-              )}
-            </div>
-            {post && <p style={{ margin: 0, fontSize: 10, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>📋 {post.title}</p>}
-          </div>
+        {other?.avatar_url
+          ? <img src={other.avatar_url} alt="" style={{width:36,height:36,borderRadius:10,objectFit:'cover',border:'1px solid #2a2a2a',flexShrink:0}}/>
+          : <div style={{width:36,height:36,borderRadius:10,flexShrink:0,background:'#222',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#FFD11A'}}>{other?initials(other.full_name):'?'}</div>
+        }
+
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontSize:14,fontWeight:700,margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{other?.full_name??'...'}</p>
+          {post&&<p style={{fontSize:11,color:'#555',margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>📋 {post.title}</p>}
         </div>
 
-        <button onClick={() => setShowInfo(s => !s)} style={{ background: 'none', border: 'none', color: showInfo ? '#FFD11A' : '#555', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0, fontSize: 18 }}>
-          ℹ️
-        </button>
-      </div>
-
-      {/* ─── Info panel (slidedown) ─── */}
-      {showInfo && post && (
-        <div style={{ backgroundColor: '#111', borderBottom: '1px solid #1e1e1e', padding: '14px 16px', flexShrink: 0 }}>
-          <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 800, color: '#fff' }}>{post.title}</p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-            {urgInfo && <span style={{ fontSize: 11, color: urgInfo.color }}>{urgInfo.label}</span>}
-            {(post.budget_min || post.budget_max) && (
-              <span style={{ fontSize: 11, color: '#888' }}>💰 R$ {fmt(post.budget_min ?? 0)} – R$ {fmt(post.budget_max ?? 0)}</span>
-            )}
-            {candidatura?.valor && (
-              <span style={{ fontSize: 11, color: '#FFD11A', fontWeight: 700 }}>
-                Proposta: R$ {fmt(candidatura.valor)} {candidatura.tipo ? `(${TIPO_LABEL[candidatura.tipo] ?? candidatura.tipo})` : ''}
-              </span>
-            )}
-          </div>
-          <button onClick={() => post && router.push(`/post/${post.id}`)} style={{ fontSize: 12, color: '#FFD11A', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 700 }}>
-            Ver bico completo →
+        {dealClosed && (
+          <span style={{fontSize:11,color:'#22c55e',fontWeight:700,flexShrink:0,background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:99,padding:'3px 10px'}}>
+            ✓ Acordo
+          </span>
+        )}
+        {!dealClosed && (
+          <button onClick={()=>setShowDeal(v=>!v)} style={{flexShrink:0,height:32,borderRadius:99,border:'1px solid #2a2a2a',background:'#1a1a1a',color:'#888',fontSize:12,fontWeight:700,cursor:'pointer',padding:'0 12px'}}>
+            Acordo
           </button>
+        )}
+      </header>
+
+      {/* ── DEAL INLINE PANEL ── */}
+      {showDeal && !dealClosed && (
+        <div style={{flexShrink:0,background:'#141414',borderBottom:'1px solid #222',padding:'12px 14px',display:'flex',gap:8,alignItems:'center'}}>
+          <span style={{fontSize:13,color:'#888',flexShrink:0}}>R$</span>
+          <input
+            type="number" placeholder="Valor combinado" value={dealValue} onChange={e=>setDealValue(e.target.value)}
+            autoFocus
+            style={{flex:1,background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:14,outline:'none'}}
+          />
+          <button onClick={closeDeal} disabled={!dealValue} style={{height:38,borderRadius:10,border:'none',background:dealValue?'linear-gradient(135deg,#FFD11A,#FF9500)':'#2a2a2a',color:dealValue?'#0f0f0f':'#555',fontWeight:800,fontSize:13,cursor:dealValue?'pointer':'not-allowed',padding:'0 16px',flexShrink:0}}>
+            Confirmar ✅
+          </button>
+          <button onClick={()=>setShowDeal(false)} style={{background:'none',border:'none',color:'#555',cursor:'pointer',fontSize:18,lineHeight:1,padding:4,flexShrink:0}}>✕</button>
         </div>
       )}
 
-      {/* ─── Bico banner ─── */}
-      {!showInfo && post && (
-        <div style={{ flexShrink: 0, padding: '8px 16px 0' }}>
-          <div style={{ backgroundColor: '#171717', borderRadius: 12, padding: '10px 14px', border: '1px solid #222', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.title}</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {candidatura?.valor && (
-                  <span style={{ fontSize: 11, color: '#FFD11A', fontWeight: 700 }}>R$ {fmt(candidatura.valor)}</span>
-                )}
-                {candidatura?.tipo && (
-                  <span style={{ fontSize: 10, color: '#666' }}>{TIPO_LABEL[candidatura.tipo] ?? candidatura.tipo}</span>
-                )}
-                <span style={{ fontSize: 10, color: candidatura?.status === 'aceita' ? '#22C55E' : '#888', fontWeight: 700 }}>
-                  {candidatura?.status === 'aceita' ? '✓ Aceita' : candidatura?.status === 'confirmada' ? '✅ Confirmada' : '● Em negociação'}
-                </span>
-              </div>
-            </div>
-            <button onClick={() => router.push(`/post/${post.id}`)} style={{ background: 'none', border: 'none', color: '#FFD11A', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-              Ver bico →
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ── MESSAGES ── */}
+      <div style={{flex:1,overflowY:'auto',padding:'14px 14px 0',maxWidth:520,width:'100%',margin:'0 auto',alignSelf:'stretch'}}>
 
-      {/* ─── Messages area ─── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 8px' }}>
-        {mensagens.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#444' }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>🦆</div>
-            <p style={{ fontSize: 14, color: '#555' }}>Inicie a conversa!</p>
+        {messages.length===0&&(
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'60px 0',textAlign:'center',gap:12}}>
+            <span style={{fontSize:44}}>💬</span>
+            <p style={{fontSize:14,color:'#555',margin:0}}>Inicie a conversa!</p>
           </div>
         )}
 
-        {mensagens.map((m, i) => {
-          const sid      = getSenderId(m)
-          const isMine   = sid === userId
-          const isSystem = isSystemMsg(m)
-          const isPhoto  = (m.tipo || m.type) === 'foto'
-          const prev     = mensagens[i - 1]
-          const showTime = !prev || new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() > 5 * 60000
-          const prevSame = prev && getSenderId(prev) === sid && !isSystemMsg(prev)
-
-          return (
-            <div key={m.id}>
-              {/* Time separator */}
-              {showTime && (
-                <div style={{ textAlign: 'center', margin: '10px 0 6px' }}>
-                  <span style={{ fontSize: 10, color: '#444', backgroundColor: '#141414', borderRadius: 8, padding: '2px 10px' }}>
-                    {formatTime(m.created_at)}
-                  </span>
-                </div>
-              )}
-
-              {/* System message */}
-              {isSystem ? (
-                <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
-                  <div style={{ backgroundColor: '#1e1e1e', borderRadius: 8, padding: '6px 14px', maxWidth: '80%', textAlign: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#888' }}>{m.content}</span>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 2, alignItems: 'flex-end', gap: 6 }}>
-                  {/* Other user avatar (only on first message in group) */}
-                  {!isMine && (
-                    <div style={{ opacity: prevSame ? 0 : 1, flexShrink: 0 }}>
-                      <Avatar src={otherUser?.avatar_url ?? null} name={otherUser?.full_name ?? null} size={28} />
-                    </div>
-                  )}
-
-                  <div style={{ maxWidth: '74%' }}>
-                    {isPhoto ? (
-                      <img
-                        src={m.content}
-                        alt=""
-                        style={{ maxWidth: '100%', borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', display: 'block' }}
-                      />
-                    ) : (
-                      <div style={{
-                        padding: '10px 13px',
-                        borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                        backgroundColor: isMine ? '#FFD11A' : '#1e1e1e',
-                        color: isMine ? '#0F0F0F' : '#e8e8e8',
-                        fontSize: 14,
-                        lineHeight: 1.55,
-                      }}>
-                        {formatContent(m.content)}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 10, color: '#444', marginTop: 2, textAlign: isMine ? 'right' : 'left' }}>
-                      {timeAgo(m.created_at)}
-                      {isMine && m.lida && <span style={{ color: '#FFD11A' }}> ✓✓</span>}
-                    </div>
-                  </div>
-                </div>
-              )}
+        {grouped.map(g => (
+          <div key={g.date}>
+            <div style={{display:'flex',alignItems:'center',gap:8,margin:'14px 0 10px'}}>
+              <div style={{flex:1,height:1,background:'#1e1e1e'}}/>
+              <span style={{fontSize:11,color:'#444'}}>{g.date}</span>
+              <div style={{flex:1,height:1,background:'#1e1e1e'}}/>
             </div>
-          )
-        })}
-        <div ref={bottomRef} />
+            {g.msgs.map(m => <Bubble key={m.id} msg={m} isMe={m.sender_id===meId} other={other}/>)}
+          </div>
+        ))}
+
+        {dealClosed&&conv?.valor_combinado!=null&&(
+          <div style={{margin:'16px 0',background:'rgba(34,197,94,0.07)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:14,padding:'14px',textAlign:'center'}}>
+            <p style={{fontSize:13,fontWeight:800,color:'#22c55e',margin:'0 0 4px'}}>🤝 Acordo fechado</p>
+            <p style={{fontSize:22,fontWeight:900,margin:0}}>R$ {conv.valor_combinado.toFixed(2).replace('.',',')}</p>
+          </div>
+        )}
+
+        <div ref={bottomRef} style={{height:8}}/>
       </div>
 
-      {/* ─── Gerar contrato banner ─── */}
-      {!hasContract && mensagens.length > 0 && (
-        <div style={{ flexShrink: 0, padding: '0 16px 6px' }}>
-          <div style={{ backgroundColor: '#0d1500', border: '1px solid #FFD11A33', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#ccc' }}>Negociação concluída? Gere o contrato agora</p>
-            </div>
-            <button
-              onClick={() => router.push(`/contrato/${chatId}`)}
-              style={{ flexShrink: 0, backgroundColor: '#FFD11A', border: 'none', borderRadius: 8, padding: '8px 12px', color: '#0F0F0F', fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
-              Gerar contrato ⚡
-            </button>
+      {/* ── INPUT BAR ── */}
+      <div style={{flexShrink:0,background:'rgba(10,10,10,0.97)',backdropFilter:'blur(12px)',borderTop:'1px solid #1a1a1a',padding:'10px 14px 20px'}}>
+        <div style={{maxWidth:520,margin:'0 auto',display:'flex',alignItems:'flex-end',gap:8}}>
+
+          <button onClick={()=>fileRef.current?.click()} disabled={uploading}
+            style={{width:40,height:40,borderRadius:11,border:'1px solid #2a2a2a',background:'#1a1a1a',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            {uploading
+              ? <div style={{width:14,height:14,border:'2px solid #333',borderTopColor:'#FFD11A',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>
+              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.47"/></svg>
+            }
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:'none'}}/>
+
+          <div style={{flex:1,background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:12,padding:'9px 12px',display:'flex',alignItems:'flex-end'}}>
+            <textarea ref={textareaRef} value={newMsg}
+              onChange={e=>{ setNewMsg(e.target.value); e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,120)+'px' }}
+              onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()} }}
+              placeholder="Mensagem..." rows={1}
+              style={{flex:1,background:'none',border:'none',outline:'none',color:'#fff',fontSize:14,lineHeight:1.5,resize:'none',fontFamily:'inherit',overflow:'hidden'}}
+            />
           </div>
+
+          <button onClick={send} disabled={!newMsg.trim()||sending}
+            style={{width:40,height:40,borderRadius:11,border:'none',flexShrink:0,background:newMsg.trim()?'linear-gradient(135deg,#FFD11A,#FF9500)':'#1a1a1a',cursor:newMsg.trim()?'pointer':'not-allowed',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
+            {sending
+              ? <div style={{width:14,height:14,border:'2.5px solid rgba(0,0,0,0.2)',borderTopColor:'#0f0f0f',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>
+              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={newMsg.trim()?'#0f0f0f':'#444'} strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            }
+          </button>
+        </div>
+      </div>
+
+      {/* ── Toast ── */}
+      {toast&&(
+        <div style={{position:'fixed',bottom:80,left:'50%',transform:'translateX(-50%)',background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:99,padding:'9px 20px',fontSize:13,fontWeight:600,zIndex:500,whiteSpace:'nowrap',animation:'toastIn 0.2s ease'}}>
+          {toast}
         </div>
       )}
 
-      {/* ─── Input bar ─── */}
-      <div style={{ backgroundColor: '#0a0a0a', borderTop: '1px solid #1e1e1e', padding: '10px 12px 20px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          {/* Attachment button */}
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            style={{ width: 42, height: 42, borderRadius: 12, border: '1.5px solid #272727', backgroundColor: 'transparent', color: uploading ? '#444' : '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}
-          >
-            {uploading ? (
-              <div style={{ width: 16, height: 16, border: '2px solid #333', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
-            ) : '📎'}
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*,video/*"
-            style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) sendPhoto(f); e.target.value = '' }}
-          />
-
-          {/* Text input */}
-          <input
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            placeholder="Digite uma mensagem..."
-            style={{ flex: 1, height: 42, backgroundColor: '#181818', border: '1.5px solid #272727', borderRadius: 12, color: '#fff', fontSize: 14, padding: '0 14px', fontFamily: 'inherit', outline: 'none', transition: 'border-color 0.15s' }}
-            onFocus={e => (e.target.style.borderColor = '#FFD11A')}
-            onBlur={e => (e.target.style.borderColor = '#272727')}
-          />
-
-          {/* Send button */}
-          <button
-            onClick={send}
-            disabled={!text.trim() || sending}
-            style={{ width: 42, height: 42, borderRadius: 12, border: 'none', backgroundColor: text.trim() ? '#FFD11A' : '#1a1a1a', color: text.trim() ? '#0F0F0F' : '#444', cursor: text.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        ::-webkit-scrollbar { width: 0; }
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(6px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+        textarea::placeholder { color: #444; }
+        * { box-sizing: border-box; margin: 0; }
+        ::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   )

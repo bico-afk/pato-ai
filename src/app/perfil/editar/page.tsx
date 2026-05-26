@@ -1,307 +1,424 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
-const SKILLS = [
-  '⚡ Elétrica', '🔧 Encanamento', '🧹 Limpeza', '🏗️ Reformas',
-  '🎨 Pintura', '🪛 Montagem', '💻 Informática', '📚 Aulas',
-  '✂️ Beleza', '🐾 Pets', '🎨 Design', '🍳 Culinária', '✨ Outros',
+/* ─── Constants ─────────────────────────────────────── */
+const SKILL_SUGGESTIONS = [
+  'Encanador', 'Eletricista', 'Pintor', 'Pedreiro', 'Marceneiro',
+  'Faxineira', 'Jardineiro', 'Motorista', 'Cozinheiro', 'Mecânico',
+  'Designer', 'Fotógrafo', 'Programador', 'Personal trainer', 'Professor',
+  'Manicure', 'Cabeleireiro', 'Maquiador', 'Dog walker', 'Babá',
+  'Diarista', 'Entregador', 'Montador', 'Chaveiro', 'Vidraceiro',
 ]
 
-const AVATAR_COLORS = ['#E74C3C','#9B59B6','#3498DB','#1ABC9C','#F39C12','#E67E22','#2ECC71','#E91E8C']
-function avatarColor(n: string) { let h = 0; for (const c of n) h = c.charCodeAt(0) + ((h << 5) - h); return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length] }
-function initials(n: string) { return (n || '?').split(' ').slice(0, 2).map(x => x[0]).join('').toUpperCase() }
-
+/* ─── Main Page ──────────────────────────────────────── */
 export default function EditarPerfilPage() {
-  const router   = useRouter()
+  const router = useRouter()
   const supabase = createClient()
-  const fileRef  = useRef<HTMLInputElement>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
 
-  const [userId,      setUserId]      = useState<string | null>(null)
-  const [loading,     setLoading]     = useState(true)
-  const [saving,      setSaving]      = useState(false)
-  const [uploadingAv, setUploadingAv] = useState(false)
-  const [saved,       setSaved]       = useState(false)
+  const [uid, setUid] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
 
-  const [fullName,    setFullName]    = useState('')
-  const [bio,         setBio]         = useState('')
-  const [city,        setCity]        = useState('')
-  const [state,       setState]       = useState('')
-  const [phone,       setPhone]       = useState('')
-  const [whatsapp,    setWhatsapp]    = useState('')
-  const [wppNotifs,   setWppNotifs]   = useState(false)
-  const [skills,      setSkills]      = useState<string[]>([])
-  const [avatarUrl,   setAvatarUrl]   = useState<string | null>(null)
+  // Form state
+  const [fullName, setFullName] = useState('')
+  const [bio, setBio] = useState('')
+  const [city, setCity] = useState('')
+  const [state, setState] = useState('')
+  const [phone, setPhone] = useState('')
+  const [skills, setSkills] = useState<string[]>([])
+  const [skillInput, setSkillInput] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
 
-  /* ── Load ── */
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { router.replace('/login'); return }
-      setUserId(data.user.id)
-      const { data: p } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
-      if (p) {
-        setFullName(p.full_name ?? '')
-        setBio(p.bio ?? '')
-        setCity(p.city ?? '')
-        setState(p.state ?? '')
-        setPhone(p.phone ?? '')
-        setWhatsapp(p.whatsapp ?? '')
-        setWppNotifs(p.wpp_notificacoes ?? false)
-        setSkills(p.skills ?? [])
-        setAvatarUrl(p.avatar_url ?? null)
-      }
-      setLoading(false)
-    })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Upload state
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
 
-  /* ── Upload avatar ── */
-  async function uploadAvatar(file: File) {
-    if (!userId) return
-    setUploadingAv(true)
-    const ext  = file.name.split('.').pop() ?? 'jpg'
-    const path = `avatars/${userId}.${ext}`
-
-    for (const bucket of ['avatars', 'post-photos']) {
-      const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type })
-      if (!error) {
-        const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path)
-        setAvatarUrl(pub.publicUrl + '?t=' + Date.now())
-        break
-      }
-    }
-    setUploadingAv(false)
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2500)
   }
 
-  /* ── Save ── */
-  async function save() {
-    if (!userId || saving) return
+  const load = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push('/login'); return }
+    const id = session.user.id
+    setUid(id)
+
+    const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
+    if (data) {
+      setFullName(data.full_name ?? '')
+      setBio(data.bio ?? '')
+      setCity(data.city ?? '')
+      setState(data.state ?? '')
+      setPhone(data.phone ?? '')
+      setSkills(data.skills ?? [])
+      setAvatarUrl(data.avatar_url ?? null)
+      setCoverUrl(data.cover_url ?? null)
+    }
+    setLoading(false)
+  }, [supabase, router])
+
+  useEffect(() => { load() }, [load])
+
+  /* ─── Avatar upload ──── */
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !uid) return
+    setUploadingAvatar(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${uid}/avatar.${ext}`
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      const publicUrl = urlData.publicUrl + '?t=' + Date.now()
+      setAvatarUrl(publicUrl)
+      showToast('✅ Foto de perfil atualizada')
+    } catch {
+      // Fallback: try post-photos bucket
+      try {
+        const ext = file.name.split('.').pop()
+        const path = `avatars/${uid}/avatar.${ext}`
+        const { error } = await supabase.storage.from('post-photos').upload(path, file, { upsert: true })
+        if (error) throw error
+        const { data: urlData } = supabase.storage.from('post-photos').getPublicUrl(path)
+        const publicUrl = urlData.publicUrl + '?t=' + Date.now()
+        setAvatarUrl(publicUrl)
+        showToast('✅ Foto de perfil atualizada')
+      } catch {
+        showToast('❌ Erro ao fazer upload da foto')
+      }
+    }
+    setUploadingAvatar(false)
+  }
+
+  /* ─── Cover upload ──── */
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !uid) return
+    setUploadingCover(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `covers/${uid}/cover.${ext}`
+      const { error } = await supabase.storage.from('post-photos').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from('post-photos').getPublicUrl(path)
+      const publicUrl = urlData.publicUrl + '?t=' + Date.now()
+      setCoverUrl(publicUrl)
+      showToast('✅ Foto de capa atualizada')
+    } catch {
+      showToast('❌ Erro ao fazer upload da capa')
+    }
+    setUploadingCover(false)
+  }
+
+  /* ─── Skills ──── */
+  const addSkill = (skill: string) => {
+    const s = skill.trim()
+    if (!s || skills.includes(s) || skills.length >= 15) return
+    setSkills(prev => [...prev, s])
+    setSkillInput('')
+  }
+
+  const removeSkill = (skill: string) => {
+    setSkills(prev => prev.filter(s => s !== skill))
+  }
+
+  const filteredSuggestions = skillInput.length > 0
+    ? SKILL_SUGGESTIONS.filter(s => s.toLowerCase().includes(skillInput.toLowerCase()) && !skills.includes(s))
+    : []
+
+  /* ─── Save ──── */
+  const handleSave = async () => {
+    if (!uid) return
+    if (fullName.trim().length < 2) { showToast('❌ Nome precisa ter pelo menos 2 caracteres'); return }
     setSaving(true)
-
-    const updates: Record<string, unknown> = {
+    const { error } = await supabase.from('profiles').upsert({
+      id: uid,
       full_name: fullName.trim(),
-      bio: bio.trim(),
-      city: city.trim(),
-      state: state.trim(),
+      bio: bio.trim() || null,
+      city: city.trim() || null,
+      state: state.trim() || null,
+      phone: phone.trim() || null,
       skills,
-    }
-    if (avatarUrl) updates.avatar_url = avatarUrl
-
-    // Try with optional columns
-    const fullUpdates = { ...updates, phone: phone.trim(), whatsapp: whatsapp.trim(), wpp_notificacoes: wppNotifs }
-    const { error: e1 } = await supabase.from('profiles').update(fullUpdates).eq('id', userId)
-    if (e1) {
-      await supabase.from('profiles').update(updates).eq('id', userId)
-    }
-
-    setSaved(true)
-    setTimeout(() => { setSaved(false); router.push(`/perfil/${userId}`) }, 1200)
+      avatar_url: avatarUrl,
+      cover_url: coverUrl,
+    })
     setSaving(false)
+    if (error) {
+      showToast('❌ Erro ao salvar: ' + error.message)
+    } else {
+      showToast('✅ Perfil salvo!')
+      setTimeout(() => router.push('/perfil'), 1000)
+    }
   }
 
-  /* ── Toggle skill ── */
-  function toggleSkill(s: string) {
-    setSkills(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
-  }
-
+  /* ─── Render ──── */
   if (loading) return (
-    <div style={{ backgroundColor: '#0F0F0F', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 32, height: 32, border: '3px solid #222', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    <div style={{ minHeight: '100vh', background: '#0F0F0F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 36, height: 36, border: '3px solid #333', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
     </div>
   )
 
   return (
-    <div style={{ backgroundColor: '#0F0F0F', minHeight: '100vh', maxWidth: 480, margin: '0 auto', fontFamily: 'Inter, sans-serif', paddingBottom: 48 }}>
+    <div style={{ minHeight: '100vh', background: '#0F0F0F', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 40 }}>
 
-      {/* ─── Header ─── */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 20, backgroundColor: '#0F0F0F', borderBottom: '1px solid #1a1a1a', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
-          </svg>
-        </button>
-        <span style={{ flex: 1, fontSize: 16, fontWeight: 800, color: '#fff', textAlign: 'center' }}>Editar perfil</span>
-        <button
-          onClick={save}
-          disabled={saving || !fullName.trim()}
-          style={{ background: 'none', border: 'none', color: saving ? '#888' : '#FFD11A', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '4px 2px' }}
-        >
-          {saved ? '✓ Salvo' : saving ? 'Salvando...' : 'Salvar'}
-        </button>
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+          background: '#1A1A1A', border: '1px solid #333', borderRadius: 12, padding: '10px 20px',
+          fontSize: 14, zIndex: 999, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+        }}>{toast}</div>
+      )}
+
+      {/* Header */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'rgba(15,15,15,0.95)', backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid #1E1E1E', padding: '16px 20px',
+        display: 'flex', alignItems: 'center', gap: 16,
+        maxWidth: 480, margin: '0 auto',
+      }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 0 }}>←</button>
+        <span style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>Editar Perfil</span>
       </div>
 
-      <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px' }}>
 
-        {/* ─── Avatar upload ─── */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div
-            style={{ position: 'relative', width: 90, height: 90, cursor: 'pointer' }}
-            onClick={() => fileRef.current?.click()}
-          >
-            <div style={{ width: 90, height: 90, borderRadius: '50%', border: '3px solid #FFD11A', overflow: 'hidden', backgroundColor: avatarColor(fullName || '?') }}>
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: '#fff' }}>
-                  {initials(fullName || '?')}
+        {/* Cover photo */}
+        <div style={{ position: 'relative', height: 120, marginBottom: 52, marginTop: 0 }}>
+          <div style={{
+            width: '100%', height: '100%',
+            background: coverUrl
+              ? `url(${coverUrl}) center/cover`
+              : 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 50%, #FFD11A22 100%)',
+            borderRadius: '0 0 12px 12px',
+          }} />
+          <button onClick={() => coverInputRef.current?.click()} disabled={uploadingCover} style={{
+            position: 'absolute', bottom: 8, right: 8,
+            background: 'rgba(0,0,0,0.7)', border: '1px solid #444',
+            borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 12,
+            cursor: uploadingCover ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            {uploadingCover ? '⏳' : '📷'} {uploadingCover ? 'Enviando…' : 'Alterar capa'}
+          </button>
+          <input ref={coverInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverUpload} />
+
+          {/* Avatar */}
+          <div style={{ position: 'absolute', bottom: -44, left: 16 }}>
+            <div style={{ position: 'relative' }}>
+              <div style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid #0F0F0F', overflow: 'hidden', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {avatarUrl
+                  ? <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 28 }}>🦆</span>
+                }
+              </div>
+              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} style={{
+                position: 'absolute', bottom: 0, right: 0,
+                width: 26, height: 26, borderRadius: '50%',
+                background: uploadingAvatar ? '#555' : '#FFD11A',
+                border: '2px solid #0F0F0F',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: uploadingAvatar ? 'default' : 'pointer', fontSize: 12,
+              }}>{uploadingAvatar ? '⏳' : '📷'}</button>
+              <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
+            </div>
+          </div>
+        </div>
+
+        {/* Form Fields */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+
+          {/* Full name */}
+          <div>
+            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Nome completo *</label>
+            <input
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              placeholder="Seu nome"
+              style={{
+                width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
+                borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 15,
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          {/* Bio */}
+          <div>
+            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>
+              Bio
+              <span style={{ float: 'right', fontWeight: 400, color: bio.length > 180 ? '#ef4444' : '#555' }}>{bio.length}/200</span>
+            </label>
+            <textarea
+              value={bio}
+              onChange={e => setBio(e.target.value.slice(0, 200))}
+              placeholder="Fale um pouco sobre você e seus serviços…"
+              rows={3}
+              style={{
+                width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
+                borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
+                outline: 'none', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5,
+              }}
+            />
+          </div>
+
+          {/* City + State */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Cidade</label>
+              <input
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                placeholder="Ex: São Paulo"
+                style={{
+                  width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
+                  borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
+                  outline: 'none',
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Estado</label>
+              <input
+                value={state}
+                onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
+                placeholder="SP"
+                maxLength={2}
+                style={{
+                  width: 56, background: '#1A1A1A', border: '1px solid #2A2A2A',
+                  borderRadius: 10, padding: '12px 10px', color: '#fff', fontSize: 14,
+                  outline: 'none', textAlign: 'center',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Phone */}
+          <div>
+            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>Telefone / WhatsApp</label>
+            <input
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="(11) 99999-9999"
+              type="tel"
+              style={{
+                width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
+                borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          {/* Skills */}
+          <div>
+            <label style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'block', fontWeight: 600 }}>
+              Habilidades
+              <span style={{ float: 'right', fontWeight: 400, color: '#555' }}>{skills.length}/15</span>
+            </label>
+
+            {/* Current skills */}
+            {skills.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                {skills.map(skill => (
+                  <span key={skill} style={{
+                    background: '#FFD11A22', border: '1px solid #FFD11A55',
+                    borderRadius: 20, padding: '6px 12px', fontSize: 13, color: '#FFD11A',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {skill}
+                    <button onClick={() => removeSkill(skill)} style={{
+                      background: 'none', border: 'none', color: '#FFD11A', cursor: 'pointer',
+                      padding: 0, fontSize: 14, lineHeight: 1, opacity: 0.7,
+                    }}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Input */}
+            <div style={{ position: 'relative' }}>
+              <input
+                value={skillInput}
+                onChange={e => setSkillInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); addSkill(skillInput) }
+                }}
+                placeholder="Digite uma habilidade e pressione Enter…"
+                style={{
+                  width: '100%', background: '#1A1A1A', border: '1px solid #2A2A2A',
+                  borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
+                  outline: 'none',
+                }}
+              />
+
+              {/* Suggestions dropdown */}
+              {filteredSuggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                  background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '0 0 10px 10px',
+                  maxHeight: 180, overflowY: 'auto',
+                }}>
+                  {filteredSuggestions.slice(0, 6).map(s => (
+                    <button key={s} onClick={() => addSkill(s)} style={{
+                      width: '100%', padding: '10px 14px', background: 'none', border: 'none',
+                      color: '#ddd', fontSize: 14, textAlign: 'left', cursor: 'pointer',
+                      borderBottom: '1px solid #2A2A2A',
+                    }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#2A2A2A')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >{s}</button>
+                  ))}
                 </div>
               )}
             </div>
-            <div style={{ position: 'absolute', bottom: 2, right: 2, width: 26, height: 26, borderRadius: '50%', backgroundColor: '#FFD11A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
-              {uploadingAv ? <div style={{ width: 12, height: 12, border: '2px solid #000', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} /> : '📷'}
+
+            {/* Quick suggestions */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+              {SKILL_SUGGESTIONS.filter(s => !skills.includes(s)).slice(0, 8).map(s => (
+                <button key={s} onClick={() => addSkill(s)} style={{
+                  background: '#1A1A1A', border: '1px solid #333', borderRadius: 20,
+                  padding: '5px 12px', fontSize: 12, color: '#888', cursor: 'pointer',
+                }}>+ {s}</button>
+              ))}
             </div>
           </div>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = '' }} />
-          <span style={{ fontSize: 12, color: '#666' }}>Toque para alterar a foto</span>
+
         </div>
 
-        {/* ─── Nome ─── */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-            Nome completo *
-          </label>
-          <input
-            value={fullName}
-            onChange={e => setFullName(e.target.value)}
-            placeholder="Seu nome completo"
-            style={{ width: '100%', height: 46, backgroundColor: '#171717', border: '1.5px solid #272727', borderRadius: 12, color: '#fff', fontSize: 14, padding: '0 14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-            onFocus={e => (e.target.style.borderColor = '#FFD11A')}
-            onBlur={e => (e.target.style.borderColor = '#272727')}
-          />
-        </div>
-
-        {/* ─── Bio ─── */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-            Bio
-          </label>
-          <textarea
-            value={bio}
-            onChange={e => setBio(e.target.value.slice(0, 200))}
-            placeholder="Conte um pouco sobre você e seus serviços..."
-            rows={3}
-            style={{ width: '100%', backgroundColor: '#171717', border: '1.5px solid #272727', borderRadius: 12, color: '#fff', fontSize: 14, padding: '12px 14px', fontFamily: 'inherit', outline: 'none', resize: 'none', lineHeight: 1.5, boxSizing: 'border-box' }}
-            onFocus={e => (e.target.style.borderColor = '#FFD11A')}
-            onBlur={e => (e.target.style.borderColor = '#272727')}
-          />
-          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#444', textAlign: 'right' }}>{bio.length}/200</p>
-        </div>
-
-        {/* ─── Cidade + Estado ─── */}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ flex: 2 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Cidade</label>
-            <input
-              value={city}
-              onChange={e => setCity(e.target.value)}
-              placeholder="São Paulo"
-              style={{ width: '100%', height: 46, backgroundColor: '#171717', border: '1.5px solid #272727', borderRadius: 12, color: '#fff', fontSize: 14, padding: '0 14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-              onFocus={e => (e.target.style.borderColor = '#FFD11A')}
-              onBlur={e => (e.target.style.borderColor = '#272727')}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Estado</label>
-            <input
-              value={state}
-              onChange={e => setState(e.target.value.slice(0, 2).toUpperCase())}
-              placeholder="SP"
-              maxLength={2}
-              style={{ width: '100%', height: 46, backgroundColor: '#171717', border: '1.5px solid #272727', borderRadius: 12, color: '#fff', fontSize: 14, padding: '0 14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', textTransform: 'uppercase' }}
-              onFocus={e => (e.target.style.borderColor = '#FFD11A')}
-              onBlur={e => (e.target.style.borderColor = '#272727')}
-            />
-          </div>
-        </div>
-
-        {/* ─── Telefone ─── */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Telefone</label>
-          <input
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-            placeholder="(11) 99999-9999"
-            type="tel"
-            style={{ width: '100%', height: 46, backgroundColor: '#171717', border: '1.5px solid #272727', borderRadius: 12, color: '#fff', fontSize: 14, padding: '0 14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-            onFocus={e => (e.target.style.borderColor = '#FFD11A')}
-            onBlur={e => (e.target.style.borderColor = '#272727')}
-          />
-        </div>
-
-        {/* ─── WhatsApp ─── */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>WhatsApp</label>
-          <input
-            value={whatsapp}
-            onChange={e => setWhatsapp(e.target.value)}
-            placeholder="(11) 99999-9999"
-            type="tel"
-            style={{ width: '100%', height: 46, backgroundColor: '#171717', border: '1.5px solid #272727', borderRadius: 12, color: '#fff', fontSize: 14, padding: '0 14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-            onFocus={e => (e.target.style.borderColor = '#FFD11A')}
-            onBlur={e => (e.target.style.borderColor = '#272727')}
-          />
-        </div>
-
-        {/* ─── Toggle WhatsApp notifs ─── */}
-        <div style={{ backgroundColor: '#171717', borderRadius: 12, padding: '14px 16px', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#fff' }}>Notificações no WhatsApp</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#555' }}>Receba atualizações sobre seus bicos</p>
-          </div>
-          <div
-            onClick={() => setWppNotifs(v => !v)}
-            style={{ width: 46, height: 26, borderRadius: 13, backgroundColor: wppNotifs ? '#FFD11A' : '#272727', cursor: 'pointer', position: 'relative', transition: 'background-color 0.2s', flexShrink: 0 }}
-          >
-            <div style={{ position: 'absolute', top: 3, left: wppNotifs ? 23 : 3, width: 20, height: 20, borderRadius: '50%', backgroundColor: wppNotifs ? '#0F0F0F' : '#888', transition: 'left 0.2s' }} />
-          </div>
-        </div>
-
-        {/* ─── Skills ─── */}
-        <div>
-          <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 800, color: '#fff' }}>Habilidades</p>
-          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#555' }}>Selecione o que você sabe fazer</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {SKILLS.map(skill => {
-              const selected = skills.includes(skill)
-              return (
-                <button
-                  key={skill}
-                  onClick={() => toggleSkill(skill)}
-                  style={{
-                    borderRadius: 20,
-                    padding: '7px 14px',
-                    border: `1.5px solid ${selected ? '#FFD11A' : '#272727'}`,
-                    backgroundColor: selected ? '#FFD11A' : 'transparent',
-                    color: selected ? '#0F0F0F' : '#888',
-                    fontSize: 13,
-                    fontWeight: selected ? 700 : 400,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {skill}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* ─── Save button ─── */}
+        {/* Save button */}
         <button
-          onClick={save}
-          disabled={saving || !fullName.trim()}
-          style={{ width: '100%', height: 54, borderRadius: 14, border: 'none', backgroundColor: !fullName.trim() ? '#1a1a1a' : '#FFD11A', color: !fullName.trim() ? '#555' : '#0F0F0F', fontSize: 15, fontWeight: 800, cursor: !fullName.trim() ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, transition: 'all 0.2s' }}
+          onClick={handleSave}
+          disabled={saving || fullName.trim().length < 2}
+          style={{
+            width: '100%', padding: '16px 0', marginTop: 28,
+            background: saving || fullName.trim().length < 2 ? '#333' : '#FFD11A',
+            color: saving || fullName.trim().length < 2 ? '#666' : '#000',
+            border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800,
+            cursor: saving || fullName.trim().length < 2 ? 'default' : 'pointer',
+            transition: 'all 0.2s',
+          }}
         >
-          {saved ? '✓ Salvo com sucesso!' : saving ? (
-            <><div style={{ width: 18, height: 18, border: '2px solid #000', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} /> Salvando...</>
-          ) : 'Salvar alterações'}
+          {saving ? 'Salvando…' : '✅ Salvar perfil'}
         </button>
-      </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <button onClick={() => router.back()} style={{
+          width: '100%', padding: '14px 0', marginTop: 10,
+          background: 'none', border: '1px solid #2A2A2A', borderRadius: 14,
+          color: '#888', fontSize: 15, cursor: 'pointer',
+        }}>
+          Cancelar
+        </button>
+
+      </div>
     </div>
   )
 }

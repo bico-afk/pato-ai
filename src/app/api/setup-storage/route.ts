@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getAuthUser, unauthorized, forbidden, isAdminUser } from '@/lib/auth'
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  /* ── Requer admin ── */
+  const user = await getAuthUser(req)
+  if (!user) return unauthorized()
+  if (!isAdminUser(user)) return forbidden()
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 

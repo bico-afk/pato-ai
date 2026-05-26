@@ -1,351 +1,422 @@
 'use client'
 
 import { useState, Suspense } from 'react'
-import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Image         from 'next/image'
 import { createClient } from '@/lib/supabase'
 
-/* ── helpers ─────────────────────────────────────────────── */
-function friendlyErr(m: string) {
-  if (m.includes('Email not confirmed') || m.includes('email_not_confirmed'))
-    return 'E-mail não confirmado. Verifique sua caixa de entrada.'
-  if (m.includes('Invalid login credentials'))
-    return 'E-mail ou senha incorretos.'
-  if (m.includes('rate limit') || m.includes('over_email_send_rate_limit'))
-    return 'Muitas tentativas. Aguarde alguns minutos.'
-  if (m.includes('provider is not enabled'))
-    return 'Login com Google não está ativado ainda.'
-  if (m.includes('User not found'))
-    return 'Nenhuma conta com esse e-mail.'
-  return m
+/* ─── Google icon ─────────────────────────────────────────── */
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+  )
 }
 
-/* ── icons ───────────────────────────────────────────────── */
-const IconMail  = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-const IconLock  = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-const IconEye   = ({ open }: { open: boolean }) => open
-  ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-const IconGoogle = () => <svg width="20" height="20" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-const IconX     = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-
-/* ── decorative duck ─────────────────────────────────────── */
-const DuckBg = () => (
-  <svg viewBox="0 0 360 360" fill="white" style={{ position:'absolute', left:-40, bottom:20, width:320, opacity:0.04, pointerEvents:'none', userSelect:'none', zIndex:0 }}>
-    <ellipse cx="175" cy="265" rx="145" ry="90"/>
-    <circle cx="265" cy="80" r="62"/>
-    <path d="M240 130 Q278 170 268 220"/>
-    <path d="M320 68 L362 58 L364 88 L322 86 Z"/>
-    <path d="M30 235 Q8 262 20 300 L58 278 Q44 254 56 235 Z"/>
-    <path d="M100 268 Q175 235 250 268" stroke="white" strokeWidth="9" fill="none" strokeLinecap="round"/>
-  </svg>
-)
-
-/* ── glow helpers ────────────────────────────────────────── */
-function onFocus(e: React.FocusEvent<HTMLInputElement>) {
-  e.target.style.borderColor = '#FFD11A'
-  e.target.style.boxShadow   = '0 0 0 3px rgba(255,209,26,0.12)'
-}
-function onBlur(e: React.FocusEvent<HTMLInputElement>) {
-  e.target.style.borderColor = '#272727'
-  e.target.style.boxShadow   = 'none'
-}
-
-/* ── modal esqueceu senha ────────────────────────────────── */
+/* ─── Forgot password modal ───────────────────────────────── */
 function ForgotModal({ onClose }: { onClose: () => void }) {
-  const supabase = createClient()
-  const [email,  setEmail]  = useState('')
-  const [load,   setLoad]   = useState(false)
-  const [msg,    setMsg]    = useState<{ ok: boolean; text: string } | null>(null)
+  const [resetEmail,  setResetEmail]  = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [sent,        setSent]        = useState(false)
+  const [error,       setError]       = useState('')
+  const [focused,     setFocused]     = useState(false)
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault()
-    setLoad(true); setMsg(null)
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${window.location.origin}/auth/callback?next=/redefinir-senha`,
+  async function handleReset() {
+    if (!resetEmail.trim() || loading) return
+    setLoading(true); setError('')
+    const supabase = createClient()
+    const { error: e } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback?type=recovery`
+        : undefined,
     })
-    setLoad(false)
-    if (error) setMsg({ ok:false, text: 'Erro ao enviar. Verifique o e-mail e tente novamente.' })
-    else        setMsg({ ok:true,  text: 'Link enviado! Verifique sua caixa de entrada e spam.' })
+    setLoading(false)
+    if (e) { setError(e.message); return }
+    setSent(true)
   }
 
   return (
-    <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.8)', backdropFilter:'blur(6px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-      <div style={{ width:'100%', maxWidth:380, backgroundColor:'#111', border:'1px solid #222', borderRadius:20, padding:28, position:'relative' }}>
-        {/* close */}
-        <button onClick={onClose} style={{ position:'absolute', top:16, right:16, background:'none', border:'none', color:'#444', cursor:'pointer', display:'flex', padding:4, borderRadius:8 }}>
-          <IconX />
-        </button>
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+        width: '100%', maxWidth: 420, zIndex: 201,
+        backgroundColor: '#141414', borderRadius: '24px 24px 0 0',
+        border: '1px solid #2A2A2A', borderBottom: 'none',
+        padding: '24px 24px 48px',
+        animation: 'slideUp 0.25s ease',
+      }}>
+        <div style={{ width: 36, height: 4, borderRadius: 99, background: '#333', margin: '0 auto 24px' }} />
 
-        <h3 style={{ margin:'0 0 6px', fontSize:20, fontWeight:900, color:'#fff' }}>Esqueceu a senha?</h3>
-        <p style={{ margin:'0 0 22px', fontSize:13, color:'#555', lineHeight:1.5 }}>
-          Digite seu e-mail e enviaremos um link para você criar uma nova senha.
-        </p>
-
-        {msg && (
-          <div style={{ padding:'12px 14px', borderRadius:10, marginBottom:16,
-            backgroundColor: msg.ok ? '#0a1f12' : '#1f0707',
-            border:`1px solid ${msg.ok ? '#1a5c33' : '#5c1111'}`,
-            color: msg.ok ? '#4ade80' : '#f87171', fontSize:13, lineHeight:1.5 }}>
-            {msg.text}
+        {sent ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 44, marginBottom: 16 }}>📬</div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>E-mail enviado!</h2>
+            <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 24 }}>
+              Verifique sua caixa de entrada e clique no link para redefinir sua senha.
+            </p>
+            <button
+              onClick={onClose}
+              style={{ height: 48, borderRadius: 14, border: 'none', background: '#FFD11A', color: '#0F0F0F', fontWeight: 800, cursor: 'pointer', padding: '0 28px', fontSize: 14 }}
+            >
+              Fechar
+            </button>
           </div>
-        )}
+        ) : (
+          <>
+            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>Esqueci a senha</h2>
+            <p style={{ fontSize: 13, color: '#666', marginBottom: 20, lineHeight: 1.5 }}>
+              Digite seu e-mail e enviaremos um link para redefinir sua senha.
+            </p>
 
-        <form onSubmit={send} style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ position:'relative' }}>
-            <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'#444', display:'flex', pointerEvents:'none' }}><IconMail /></span>
-            <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="seuemail@exemplo.com" required
-              style={{ width:'100%', boxSizing:'border-box', height:52, backgroundColor:'#171717', border:'1.5px solid #272727', borderRadius:12, paddingLeft:46, paddingRight:14, color:'#fff', fontSize:14, outline:'none', transition:'border-color 0.15s, box-shadow 0.15s', fontFamily:'inherit' }}
-              onFocus={onFocus} onBlur={onBlur}
-            />
-          </div>
-          <button type="submit" disabled={load || !!msg?.ok} style={{
-            height:52, borderRadius:12, border:'none',
-            backgroundColor: (load || msg?.ok) ? '#1a1800' : '#FFD11A',
-            color: (load || msg?.ok) ? '#444' : '#000',
-            fontSize:14, fontWeight:700, cursor: load ? 'not-allowed' : 'pointer',
-            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-            boxShadow: (!load && !msg?.ok) ? '0 4px 16px rgba(255,209,26,0.2)' : 'none',
-          }}>
-            {load
-              ? <><span style={{ width:16, height:16, border:'2px solid #0003', borderTopColor:'#000', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/> enviando…</>
-              : msg?.ok ? '✓ Link enviado!' : 'Enviar link de recuperação →'
-            }
-          </button>
-        </form>
+            {error && (
+              <div style={{ background: 'rgba(226,75,74,0.1)', border: '1px solid rgba(226,75,74,0.3)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#FF6B6B' }}>
+                ⚠️ {error}
+              </div>
+            )}
 
-        {msg?.ok && (
-          <button onClick={onClose} style={{ marginTop:12, width:'100%', height:44, borderRadius:12, border:'1px solid #222', backgroundColor:'transparent', color:'#aaa', fontSize:13, cursor:'pointer' }}>
-            Voltar ao login
-          </button>
+            <div style={{
+              display: 'flex', alignItems: 'center', height: 54,
+              background: '#1A1A1A',
+              border: `1.5px solid ${focused ? '#FFD11A' : '#2E2E2E'}`,
+              borderRadius: 14, padding: '0 16px', gap: 10, marginBottom: 16,
+              boxShadow: focused ? '0 0 0 3px rgba(255,209,26,0.08)' : 'none',
+              transition: 'all 0.15s',
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#FFD11A' : '#555'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s' }}>
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+              <input
+                type="email"
+                value={resetEmail}
+                onChange={e => setResetEmail(e.target.value)}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                onKeyDown={e => e.key === 'Enter' && handleReset()}
+                placeholder="seu@email.com"
+                autoFocus
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 15 }}
+              />
+            </div>
+
+            <button
+              onClick={handleReset}
+              disabled={!resetEmail.trim() || loading}
+              style={{
+                width: '100%', height: 52, borderRadius: 14, border: 'none',
+                background: resetEmail.trim() ? 'linear-gradient(135deg, #FFD11A, #FF9500)' : '#1A1A1A',
+                color: resetEmail.trim() ? '#0F0F0F' : '#444',
+                fontSize: 14, fontWeight: 800, cursor: resetEmail.trim() ? 'pointer' : 'not-allowed',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              {loading ? (
+                <div style={{ width: 18, height: 18, border: '2.5px solid rgba(0,0,0,0.2)', borderTopColor: '#0F0F0F', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+              ) : '📨 Enviar link de acesso'}
+            </button>
+          </>
         )}
       </div>
-    </div>
+    </>
   )
 }
 
-/* ── login form ──────────────────────────────────────────── */
-function LoginForm() {
+/* ─── Page ────────────────────────────────────────────────── */
+function LoginContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const supabase     = createClient()
+  const pendingQuery = searchParams.get('q') ?? ''
 
-  const [email,    setEmail]   = useState('')
-  const [pwd,      setPwd]     = useState('')
-  const [showPwd,  setShow]    = useState(false)
-  const [load,     setLoad]    = useState(false)
-  const [gLoad,    setGLoad]   = useState(false)
-  const [err,      setErr]     = useState<string | null>(
-    searchParams.get('error') ? 'Falha na autenticação. Tente novamente.' : null
-  )
-  const [notConf,  setNotConf] = useState(false)
-  const [showForgot, setForgot] = useState(false)
+  const [email,       setEmail]       = useState('')
+  const [password,    setPassword]    = useState('')
+  const [showPwd,     setShowPwd]     = useState(false)
+  const [focused,     setFocused]     = useState<string | null>(null)
+  const [loading,     setLoading]     = useState(false)
+  const [gLoading,    setGLoading]    = useState(false)
+  const [error,       setError]       = useState('')
+  const [showForgot,  setShowForgot]  = useState(false)
 
-  const inp: React.CSSProperties = {
-    width:'100%', boxSizing:'border-box', height:56,
-    backgroundColor:'#171717', border:'1.5px solid #272727', borderRadius:14,
-    paddingLeft:46, paddingRight:16, color:'#fff', fontSize:15, outline:'none',
-    transition:'border-color 0.15s, box-shadow 0.15s', fontFamily:'inherit',
-  }
+  const isValid = /\S+@\S+\.\S+/.test(email) && password.length >= 6
 
-  async function afterLogin() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/feed'); return }
-    // Verificar se completou onboarding (city preenchida = completou)
-    const { data: prof } = await supabase.from('profiles').select('city, type').eq('id', user.id).single()
-    if (!prof?.city) {
-      router.push('/onboarding')
-    } else {
-      router.push('/feed')
+  function inputBox(field: string, hasError: boolean): React.CSSProperties {
+    const isFocused = focused === field
+    return {
+      display: 'flex', alignItems: 'center',
+      height: 56, background: '#1A1A1A',
+      border: `1.5px solid ${hasError ? '#E24B4A' : isFocused ? '#FFD11A' : '#2E2E2E'}`,
+      borderRadius: 14, padding: '0 16px', gap: 12,
+      transition: 'border-color 0.15s, box-shadow 0.15s',
+      boxShadow: isFocused && !hasError ? '0 0 0 3px rgba(255,209,26,0.08)' : 'none',
     }
   }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
-    setLoad(true); setErr(null); setNotConf(false)
+    if (!isValid || loading) return
+    setError(''); setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password: pwd,
+    const supabase = createClient()
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+      email:    email.trim(),
+      password,
     })
-    setLoad(false)
 
-    if (error) {
-      setNotConf(error.message.includes('Email not confirmed') || error.message.includes('email_not_confirmed'))
-      setErr(friendlyErr(error.message))
-    } else {
-      await afterLogin()
+    if (loginError) {
+      setLoading(false)
+      if (loginError.message.toLowerCase().includes('invalid login credentials')) {
+        setError('E-mail ou senha incorretos. Tente novamente.')
+      } else if (loginError.message.toLowerCase().includes('email not confirmed')) {
+        setError('Confirme seu e-mail antes de fazer login.')
+      } else {
+        setError(loginError.message)
+      }
+      return
     }
-  }
 
-  async function handleResend() {
-    await supabase.auth.resend({ type:'signup', email: email.trim().toLowerCase() })
-    setErr('E-mail de confirmação reenviado! Verifique também o spam.')
-    setNotConf(false)
+    if (!data.session) {
+      setLoading(false)
+      setError('Não foi possível iniciar sessão. Tente novamente.')
+      return
+    }
+
+    // Vai direto para a busca — com query pendente ou busca vazia
+    router.push(pendingQuery ? `/resultados?q=${encodeURIComponent(pendingQuery)}` : '/resultados')
   }
 
   async function handleGoogle() {
-    setGLoad(true); setErr(null)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider:'google',
-      options:{ redirectTo:`${window.location.origin}/auth/callback` },
+    setGLoading(true)
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/callback`
+          : undefined,
+      },
     })
-    if (error) { setGLoad(false); setErr(friendlyErr(error.message)) }
   }
 
   return (
-    <>
-      {showForgot && <ForgotModal onClose={() => setForgot(false)} />}
+    <div style={{
+      minHeight: '100dvh',
+      backgroundColor: '#0F0F0F',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      color: '#fff',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '32px 20px',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
 
-      <div style={{ backgroundColor:'#0F0F0F', minHeight:'100vh', display:'flex', justifyContent:'center', fontFamily:'Inter, sans-serif' }}>
-        <div style={{ width:'100%', maxWidth:420, position:'relative', overflow:'hidden', display:'flex', flexDirection:'column', minHeight:'100vh' }}>
+      {/* Decorative background pato */}
+      <img
+        src="/pato-icon.svg"
+        alt=""
+        aria-hidden
+        style={{
+          position: 'absolute', bottom: -30, right: -50,
+          width: 340, height: 340, opacity: 0.04,
+          pointerEvents: 'none', userSelect: 'none',
+        }}
+      />
 
-          <DuckBg />
+      <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
 
-          {/* ── header ── */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'20px 24px 0', position:'relative', zIndex:1 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <Image src="/pato-icon.svg" alt="pato" width={26} height={26} />
-              <span style={{ fontSize:18, fontWeight:900, color:'#fff', letterSpacing:'-0.5px' }}>
-                pato<span style={{ color:'#FFD11A' }}>.ai</span>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 36 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: 'linear-gradient(135deg, #FFD11A, #FF9500)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(255,209,26,0.2)',
+          }}>
+            <Image src="/pato-icon.svg" alt="Bikco" width={24} height={24} />
+          </div>
+          <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.5px' }}>
+            bikco<span style={{ color: '#FFD11A' }}>.com</span>
+          </span>
+        </div>
+
+        {/* Title */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 900, color: '#fff', margin: '0 0 4px', letterSpacing: '-0.5px' }}>
+            Bem-vindo{' '}
+            <span style={{ color: '#FFD11A', fontStyle: 'italic' }}>de volta.</span>
+          </h1>
+          <p style={{ fontSize: 13, color: '#555', margin: 0 }}>
+            Continue encontrando os melhores profissionais
+          </p>
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div style={{
+            background: 'rgba(226,75,74,0.1)', border: '1px solid rgba(226,75,74,0.3)',
+            borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+            fontSize: 13, color: '#FF6B6B', lineHeight: 1.5,
+          }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* ── E-mail ── */}
+          <div style={inputBox('email', false)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={focused === 'email' ? '#FFD11A' : '#555'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s' }}>
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onFocus={() => setFocused('email')}
+              onBlur={() => setFocused(null)}
+              placeholder="seu@email.com"
+              autoComplete="email"
+              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 15 }}
+            />
+          </div>
+
+          {/* ── Senha ── */}
+          <div>
+            <div style={inputBox('password', false)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={focused === 'password' ? '#FFD11A' : '#555'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s' }}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <input
+                type={showPwd ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onFocus={() => setFocused('password')}
+                onBlur={() => setFocused(null)}
+                placeholder="Sua senha"
+                autoComplete="current-password"
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 15 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(v => !v)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#555', lineHeight: 1, flexShrink: 0 }}
+              >
+                {showPwd ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            {/* Forgot password link */}
+            <div style={{ textAlign: 'right', marginTop: 7 }}>
+              <span
+                onClick={() => setShowForgot(true)}
+                style={{ fontSize: 12, color: '#FFD11A', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Esqueci a senha
               </span>
             </div>
-            <Link href="/cadastro" style={{ color:'#444', fontSize:13, textDecoration:'none' }}>criar conta →</Link>
           </div>
 
-          {/* ── hero ── */}
-          <div style={{ padding:'28px 24px 0', position:'relative', zIndex:1 }}>
-            <p style={{ color:'#FFD11A', fontSize:10, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', margin:'0 0 12px' }}>
-              · Entrar ·
-            </p>
-            <h1 style={{ margin:'0 0 10px', lineHeight:1.05 }}>
-              <span style={{ display:'block', fontSize:38, fontWeight:900, color:'#fff', letterSpacing:'-1.5px' }}>Bem-vindo</span>
-              <span style={{ display:'block', fontSize:38, fontWeight:900, color:'#FFD11A', letterSpacing:'-1.5px', fontStyle:'italic' }}>de volta. 👋</span>
-            </h1>
-            <p style={{ color:'#555', fontSize:14, lineHeight:1.6, margin:'0 0 28px' }}>
-              Sentimos sua falta. O bando está te esperando.
-            </p>
-          </div>
-
-          {/* ── form ── */}
-          <form onSubmit={handleLogin} style={{ padding:'0 24px', display:'flex', flexDirection:'column', gap:16, position:'relative', zIndex:1 }}>
-
-            {/* error */}
-            {err && (
-              <div style={{ padding:'13px 16px', borderRadius:12, backgroundColor:'#1f0707', border:'1.5px solid #5c1111', color:'#f87171', fontSize:13, lineHeight:1.5 }}>
-                ⚠️ {err}
-                {notConf && (
-                  <button type="button" onClick={handleResend}
-                    style={{ display:'block', marginTop:8, background:'none', border:'1px solid #FFD11A44', borderRadius:8, color:'#FFD11A', fontSize:12, fontWeight:600, padding:'6px 12px', cursor:'pointer' }}>
-                    Reenviar e-mail de confirmação
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* email */}
-            <div>
-              <label style={{ display:'block', color:'#555', fontSize:11, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:7 }}>E-mail</label>
-              <div style={{ position:'relative' }}>
-                <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'#444', display:'flex', pointerEvents:'none' }}><IconMail /></span>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="seuemail@exemplo.com" required
-                  style={inp} onFocus={onFocus} onBlur={onBlur} />
-              </div>
-            </div>
-
-            {/* senha */}
-            <div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:7 }}>
-                <label style={{ color:'#555', fontSize:11, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase' }}>Senha</label>
-                <button type="button" onClick={() => setForgot(true)}
-                  style={{ background:'none', border:'none', color:'#444', fontSize:12, cursor:'pointer', padding:0, transition:'color 0.15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color='#FFD11A')}
-                  onMouseLeave={e => (e.currentTarget.style.color='#444')}>
-                  Esqueci a senha
-                </button>
-              </div>
-              <div style={{ position:'relative' }}>
-                <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'#444', display:'flex', pointerEvents:'none' }}><IconLock /></span>
-                <input type={showPwd ? 'text' : 'password'} value={pwd}
-                  onChange={e => setPwd(e.target.value)}
-                  placeholder="sua senha" required
-                  style={{ ...inp, paddingRight:50 }}
-                  onFocus={onFocus} onBlur={onBlur} />
-                <button type="button" onClick={() => setShow(v => !v)}
-                  style={{ position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#444', cursor:'pointer', display:'flex', padding:0 }}>
-                  <IconEye open={showPwd} />
-                </button>
-              </div>
-            </div>
-
-            {/* submit */}
-            <button type="submit" disabled={load} style={{
-              height:56, width:'100%', borderRadius:14, border:'none',
-              backgroundColor: load ? '#b89a12' : '#FFD11A',
-              color:'#0F0F0F', fontSize:16, fontWeight:800,
-              cursor: load ? 'not-allowed' : 'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-              transition:'all 0.2s', marginTop:4,
-              boxShadow: load ? 'none' : '0 4px 24px rgba(255,209,26,0.25)',
-              letterSpacing:'-0.2px',
-            }}>
-              {load
-                ? <><span style={{ width:18, height:18, border:'2px solid #0003', borderTopColor:'#000', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/> entrando…</>
-                : 'Entrar →'
-              }
-            </button>
-          </form>
-
-          {/* ── divider ── */}
-          <div style={{ display:'flex', alignItems:'center', gap:12, margin:'20px 24px', position:'relative', zIndex:1 }}>
-            <div style={{ flex:1, height:1, backgroundColor:'#1e1e1e' }}/>
-            <span style={{ color:'#333', fontSize:11, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', whiteSpace:'nowrap' }}>ou continue com</span>
-            <div style={{ flex:1, height:1, backgroundColor:'#1e1e1e' }}/>
-          </div>
-
-          {/* ── google ── */}
-          <div style={{ padding:'0 24px', position:'relative', zIndex:1 }}>
-            <button type="button" onClick={handleGoogle} disabled={gLoad} style={{
-              height:56, width:'100%', borderRadius:14,
-              backgroundColor:'#171717', border:'1.5px solid #272727',
-              color:'#fff', fontSize:14, fontWeight:600,
-              cursor: gLoad ? 'not-allowed' : 'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center', gap:10,
-              transition:'border-color 0.15s, box-shadow 0.15s',
+          {/* ── Submit ── */}
+          <button
+            type="submit"
+            disabled={!isValid || loading}
+            style={{
+              height: 56, borderRadius: 14, border: 'none', marginTop: 4,
+              background: isValid
+                ? 'linear-gradient(135deg, #FFD11A 0%, #FF9500 100%)'
+                : '#1A1A1A',
+              color: isValid ? '#0F0F0F' : '#444',
+              fontSize: 15, fontWeight: 800, cursor: isValid ? 'pointer' : 'not-allowed',
+              boxShadow: isValid ? '0 4px 18px rgba(255,209,26,0.25)' : 'none',
+              transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor='#444'; e.currentTarget.style.boxShadow='0 0 0 3px rgba(255,255,255,0.04)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor='#272727'; e.currentTarget.style.boxShadow='none' }}>
-              <IconGoogle />
-              {gLoad ? 'redirecionando…' : 'Continuar com Google'}
-            </button>
-          </div>
+          >
+            {loading ? (
+              <div style={{ width: 18, height: 18, border: '2.5px solid rgba(0,0,0,0.2)', borderTopColor: '#0F0F0F', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+            ) : '→ Entrar'}
+          </button>
+        </form>
 
-          {/* ── footer ── */}
-          <div style={{ textAlign:'center', padding:'28px 24px 40px', position:'relative', zIndex:1 }}>
-            <p style={{ margin:0, color:'#444', fontSize:14 }}>
-              Não tem conta?{' '}
-              <Link href="/cadastro" style={{ color:'#FFD11A', fontWeight:700, textDecoration:'none' }}>
-                Cadastrar grátis →
-              </Link>
-            </p>
-          </div>
-
+        {/* ── Divider ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+          <div style={{ flex: 1, height: 1, background: '#1E1E1E' }} />
+          <span style={{ fontSize: 12, color: '#444', fontWeight: 500 }}>ou</span>
+          <div style={{ flex: 1, height: 1, background: '#1E1E1E' }} />
         </div>
+
+        {/* ── Google ── */}
+        <button
+          onClick={handleGoogle}
+          disabled={gLoading}
+          style={{
+            width: '100%', height: 56, borderRadius: 14,
+            border: '1.5px solid #2E2E2E', background: '#1A1A1A',
+            color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#3A3A3A'; e.currentTarget.style.background = '#222' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#2E2E2E'; e.currentTarget.style.background = '#1A1A1A' }}
+        >
+          {gLoading ? (
+            <div style={{ width: 18, height: 18, border: '2.5px solid #333', borderTopColor: '#aaa', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          ) : <GoogleIcon />}
+          Continuar com Google
+        </button>
+
+        {/* ── Register link ── */}
+        <p style={{ textAlign: 'center', marginTop: 24, fontSize: 14, color: '#555' }}>
+          Não tem conta?{' '}
+          <span
+            onClick={() => router.push('/cadastro')}
+            style={{ color: '#FFD11A', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Cadastrar grátis
+          </span>
+        </p>
       </div>
 
+      {/* ── Forgot password modal ── */}
+      {showForgot && <ForgotModal onClose={() => setShowForgot(false)} />}
+
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg) } }
-        * { box-sizing: border-box }
-        input::placeholder { color: #333 }
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes slideUp { from { transform: translateX(-50%) translateY(100%); } to { transform: translateX(-50%) translateY(0); } }
+        input::placeholder { color: #444; }
+        * { box-sizing: border-box; }
       `}</style>
-    </>
+    </div>
   )
 }
 
 export default function LoginPage() {
-  return <Suspense><LoginForm /></Suspense>
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: '#0F0F0F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 32, height: 32, border: '3px solid #1E1E1E', borderTopColor: '#FFD11A', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
+  )
 }

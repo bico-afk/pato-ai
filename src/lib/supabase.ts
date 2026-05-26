@@ -8,15 +8,13 @@ let client: ReturnType<typeof createSupabaseClient> | null = null
 
 export function createClient() {
   if (typeof window === 'undefined') {
-    // Server side: sempre nova instância
     return createSupabaseClient(supabaseUrl, supabaseAnon)
   }
-  // Browser: singleton para preservar a sessão
   if (!client) {
     client = createSupabaseClient(supabaseUrl, supabaseAnon, {
       auth: {
-        persistSession: true,
-        autoRefreshToken: true,
+        persistSession:    true,
+        autoRefreshToken:  true,
         detectSessionInUrl: true,
       },
     })
