@@ -56,15 +56,25 @@ export default function DemandForm() {
         try {
           const key = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY ?? ''
           if (key) {
-            const res  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.latitude},${coords.longitude}&language=pt-BR&result_type=administrative_area_level_2&key=${key}`)
-            const json = await res.json()
+            const res   = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.latitude},${coords.longitude}&language=pt-BR&result_type=administrative_area_level_2&key=${key}`)
+            const json  = await res.json()
             const comps = json.results?.[0]?.address_components as Array<{ long_name: string; short_name: string; types: string[] }> | undefined
             const city  = comps?.find(c => c.types.includes('administrative_area_level_2'))?.long_name ?? ''
             const state = comps?.find(c => c.types.includes('administrative_area_level_1'))?.short_name ?? ''
             if (city)  setLocationCity(city)
             if (state) setLocationState(state)
           } else {
-            setLocationCity(`${coords.latitude.toFixed(2)}, ${coords.longitude.toFixed(2)}`)
+            // Fallback: Nominatim (gratuito, sem chave)
+            const res  = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&accept-language=pt-BR`,
+              { headers: { 'User-Agent': 'Bikco/1.0' } }
+            )
+            const json = await res.json()
+            const addr = json.address as Record<string, string> | undefined
+            const city  = addr?.city ?? addr?.town ?? addr?.municipality ?? addr?.village ?? ''
+            const state = addr?.['ISO3166-2-lvl4']?.split('-')[1] ?? addr?.state ?? ''
+            if (city)  setLocationCity(city)
+            if (state) setLocationState(state)
           }
         } catch { /* ignore */ }
         setGeoLoading(false)

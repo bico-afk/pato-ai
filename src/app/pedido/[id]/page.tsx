@@ -204,7 +204,7 @@ export default function PedidoPage() {
         {/* Candidate count */}
         <p style={{ fontSize: 14, color: '#555', marginBottom: 28 }}>
           <span style={{ color: '#fff', fontWeight: 700 }}>{demand.candidate_count}</span>{' '}
-          profissional{demand.candidate_count !== 1 ? 'is' : ''} se candidatou{demand.candidate_count !== 1 ? 'aram' : ''}
+          {demand.candidate_count !== 1 ? 'profissionais se candidataram' : 'profissional se candidatou'}
         </p>
 
         {/* Apply button (non-owner) */}
