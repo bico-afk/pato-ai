@@ -30,7 +30,8 @@ function useDebounce<T>(value: T, ms: number): T {
 }
 
 export default function FeedPage() {
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
 
   const [filter,     setFilter]     = useState<FilterKey>('todos')
   const [keyword,    setKeyword]    = useState('')
@@ -117,7 +118,7 @@ export default function FeedPage() {
       setPage(p => p + 1)
     }
     setLoadingMore(false)
-  }, [page, loadingMore, hasMore, filter, userCity, userState, debouncedKeyword, supabase])
+  }, [page, loadingMore, hasMore, filter, userCity, userState, debouncedKeyword]) // supabase stable via useRef
 
   // Intersection observer for infinite scroll
   useEffect(() => {
