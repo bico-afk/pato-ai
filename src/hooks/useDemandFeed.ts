@@ -56,7 +56,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   }
 
   const fetchInitial = useCallback(async () => {
-    console.log('[useDemandFeed] iniciando fetch...', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30))
+    console.log('[useDemandFeed] iniciando fetch...', process.env.NEXT_PUBLIC_SUPABASE_URL)
     setLoading(true)
 
     const { data, error } = await supabase
@@ -66,7 +66,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
       .order('created_at', { ascending: false })
       .limit(MAX_ITEMS)
 
-    console.log('[useDemandFeed] resultado:', { count: data?.length ?? 0, error: error?.message ?? null })
+    console.log('[useDemandFeed] resultado:', { count: data?.length ?? 0, error: error?.message ?? null, code: error?.code ?? null, hint: error?.hint ?? null })
 
     if (error) {
       console.error('[useDemandFeed] erro:', error.code, error.message, error.hint)
