@@ -35,7 +35,9 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   const channelRef   = useRef<RealtimeChannel | null>(null)
   const retryRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCount   = useRef(0)
-  const supabase     = createClient()
+  // Stable ref — avoids re-creating supabase on every render (would cause infinite useEffect loop)
+  const supabaseRef  = useRef(createClient())
+  const supabase     = supabaseRef.current
 
   function normalize(row: Record<string, unknown>): DemandFeedItem {
     const usersObj = row.users as { username?: string } | null
@@ -54,44 +56,29 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   }
 
   const fetchInitial = useCallback(async () => {
+    console.log('[useDemandFeed] iniciando fetch...', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30))
     setLoading(true)
-    let query = supabase
+
+    const { data, error } = await supabase
       .from('demands')
-      .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id, users(username)')
+      .select('*')
       .eq('status', 'open')
       .order('created_at', { ascending: false })
       .limit(MAX_ITEMS)
 
-    if (opts.cityFilter)    query = query.eq('location_city', opts.cityFilter)
-    if (opts.stateFilter)   query = query.eq('location_state', opts.stateFilter)
-    if (opts.countryFilter) query = query.eq('location_country', opts.countryFilter)
-    if (opts.keyword) {
-      query = query.textSearch('description', opts.keyword, {
-        type: 'plain',
-        config: 'portuguese',
-      })
-    }
+    console.log('[useDemandFeed] resultado:', { count: data?.length ?? 0, error: error?.message ?? null })
 
-    const { data, error } = await query
     if (error) {
-      console.error('[useDemandFeed] fetchInitial error:', error.code, error.message, error.details, error.hint)
-      // Fallback: retry without join
-      const { data: fallback, error: fallbackErr } = await supabase
-        .from('demands')
-        .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(MAX_ITEMS)
-      if (fallbackErr) console.error('[useDemandFeed] fallback error:', fallbackErr.message)
-      if (fallback) setItems((fallback as unknown as Record<string, unknown>[]).map(r => normalize(r)))
+      console.error('[useDemandFeed] erro:', error.code, error.message, error.hint)
       setLoading(false)
       return
     }
-    if (data) {
+
+    if (data && data.length > 0) {
       setItems((data as unknown as Record<string, unknown>[]).map(r => normalize(r)))
     }
     setLoading(false)
-  }, [opts.cityFilter, opts.stateFilter, opts.countryFilter, opts.keyword, supabase])
+  }, [opts.cityFilter, opts.stateFilter, opts.countryFilter, opts.keyword]) // supabase is stable via useRef
 
   function subscribe() {
     if (channelRef.current) {
