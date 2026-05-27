@@ -93,6 +93,7 @@ export default function ChatPage() {
   const [newMsg,     setNewMsg]     = useState('')
   const [sending,    setSending]    = useState(false)
   const [status,     setStatus]     = useState<'loading' | 'error' | 'ok'>('loading')
+  const [closing,    setClosing]    = useState(false)
 
   const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -181,6 +182,23 @@ export default function ChatPage() {
     }
   }, [chatId, router, supabase])
 
+  /* ── Close / Encerrar bico ── */
+  const closeBico = useCallback(async () => {
+    if (!chat || !chat.demand_id || closing) return
+    setClosing(true)
+    try {
+      await Promise.all([
+        supabase.from('demands').update({ status: 'closed' }).eq('id', chat.demand_id),
+        supabase.from('chats').update({ status: 'closed' }).eq('id', chat.id),
+      ])
+      setChat(prev => prev ? { ...prev, status: 'closed' } : prev)
+    } catch (e) {
+      console.error('[close-bico]', e)
+    } finally {
+      setClosing(false)
+    }
+  }, [chat, closing, supabase])
+
   const send = useCallback(async () => {
     const text = newMsg.trim()
     if (!text || sending || !chat || !myUserId) return
@@ -258,10 +276,21 @@ export default function ChatPage() {
           {demandDesc && <p style={{ fontSize: 11, color: '#444', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{demandDesc}</p>}
         </div>
 
-        {chat?.status === 'closed' && (
+        {chat?.status === 'closed' ? (
           <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, background: 'rgba(107,114,128,0.08)', border: '1px solid rgba(107,114,128,0.2)', borderRadius: 99, padding: '3px 10px', flexShrink: 0 }}>
             Encerrado
           </span>
+        ) : myUserId && chat?.client_id === myUserId && (
+          <button
+            onClick={closeBico}
+            disabled={closing}
+            title="Encerrar bico"
+            style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #333', background: 'none', color: closing ? '#444' : '#888', fontSize: 12, fontWeight: 700, cursor: closing ? 'not-allowed' : 'pointer', flexShrink: 0, transition: 'color 0.15s' }}
+            onMouseEnter={e => { if (!closing) (e.currentTarget as HTMLButtonElement).style.color = '#ef4444' }}
+            onMouseLeave={e => { if (!closing) (e.currentTarget as HTMLButtonElement).style.color = '#888' }}
+          >
+            {closing ? '...' : 'Encerrar bico'}
+          </button>
         )}
       </header>
 
