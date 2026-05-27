@@ -130,10 +130,15 @@ export default function PedidoPage() {
         message:         applyMsg.trim(),
         status:          'pending',
       })
-      if (error) throw error
+      if (error) {
+        console.error('[apply] Supabase error:', error.code, error.message, error.details, error.hint)
+        throw error
+      }
       setApplied(true); setShowApply(false)
     } catch (e) {
-      setApplyError(e instanceof Error ? e.message : 'Erro ao candidatar')
+      const msg = e instanceof Error ? e.message : 'Erro ao candidatar'
+      console.error('[apply] catch:', msg)
+      setApplyError(msg)
     } finally {
       setApplying(false)
     }
