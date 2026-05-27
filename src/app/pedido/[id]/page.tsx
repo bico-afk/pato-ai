@@ -168,14 +168,15 @@ export default function PedidoPage() {
     if (applyMsg.trim().length < 10) { setApplyError('Mínimo 10 caracteres'); return }
     setApplying(true); setApplyError('')
     try {
-      const { error } = await supabase.from('applications').insert({
+      const { data: inserted, error } = await supabase.from('applications').insert({
         demand_id:       id,
         professional_id: authUserId,
         message:         applyMsg.trim(),
         status:          'pending',
-      })
+      }).select()
+      console.log('[apply] insert result:', { data: inserted, error, professional_id: authUserId })
       if (error) {
-        console.error('[apply] error:', error.code, error.message)
+        console.error('[apply] error:', error.code, error.message, error.details, error.hint)
         throw error
       }
       setApplied(true); setShowApply(false)

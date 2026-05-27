@@ -255,7 +255,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div style={{ height: '100dvh', background: '#000', fontFamily: "'Inter', system-ui, sans-serif", color: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ height: 'calc(100dvh - 52px)', background: '#000', fontFamily: "'Inter', system-ui, sans-serif", color: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* Header */}
       <header style={{ flexShrink: 0, background: 'rgba(0,0,0,0.97)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #111', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
