@@ -38,11 +38,12 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   const supabase     = createClient()
 
   function normalize(row: Record<string, unknown>): DemandFeedItem {
-    const username = row.username as string | null
+    const usersObj = row.users as { username?: string } | null
     const anonTok  = row.anonymous_token as string | null
+    const username = usersObj?.username ?? (anonTok ? `anon_${anonTok.substring(0, 6)}` : '@usuário')
     return {
       id:               row.id as string,
-      username:         username ?? (anonTok ? anonUsername(anonTok) : '@anon'),
+      username,
       description:      row.description as string,
       location_city:    (row.location_city as string | null) ?? '',
       location_country: (row.location_country as string | null) ?? 'BR',
@@ -56,7 +57,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     setLoading(true)
     let query = supabase
       .from('demands')
-      .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
+      .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id, users(username)')
       .eq('status', 'open')
       .order('created_at', { ascending: false })
       .limit(MAX_ITEMS)
@@ -73,7 +74,18 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
 
     const { data, error } = await query
     if (error) {
-      console.error('[useDemandFeed] fetchInitial error:', error.code, error.message, error.details)
+      console.error('[useDemandFeed] fetchInitial error:', error.code, error.message, error.details, error.hint)
+      // Fallback: retry without join
+      const { data: fallback, error: fallbackErr } = await supabase
+        .from('demands')
+        .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(MAX_ITEMS)
+      if (fallbackErr) console.error('[useDemandFeed] fallback error:', fallbackErr.message)
+      if (fallback) setItems((fallback as unknown as Record<string, unknown>[]).map(r => normalize(r)))
+      setLoading(false)
+      return
     }
     if (data) {
       setItems((data as unknown as Record<string, unknown>[]).map(r => normalize(r)))
@@ -94,18 +106,15 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
         async (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
           const raw = payload.new as Record<string, unknown>
           // Fetch username separately if user_id present
-          let username: string | null = null
+          let usersObj: { username?: string } | null = null
           const userId = raw.user_id as string | null
           if (userId) {
             const { data } = await supabase
-              .from('users')
-              .select('username')
-              .eq('id', userId)
-              .single()
-            username = data?.username ?? null
+              .from('users').select('username').eq('id', userId).single()
+            usersObj = data ? { username: data.username as string } : null
           }
           const item: DemandFeedItem = {
-            ...normalize({ ...raw, username }),
+            ...normalize({ ...raw, users: usersObj }),
             isNew: true,
           }
           setItems(prev => {
