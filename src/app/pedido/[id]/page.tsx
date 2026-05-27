@@ -54,11 +54,9 @@ const initials = (n: string) =>
 
 /* ═══════════════════════════════════════════════════════════ */
 export default function PedidoPage() {
-  const { id }    = useParams<{ id: string }>()
-  const router    = useRouter()
-  // Stable ref — prevents recreating supabase every render (avoids infinite useEffect loop)
-  const sbRef     = useRef(createClient())
-  const supabase  = sbRef.current
+  const { id }   = useParams<{ id: string }>()
+  const router   = useRouter()
+  const supabase = createClient()
 
   const [demand,        setDemand]        = useState<Demand | null>(null)
   const [applications,  setApplications]  = useState<Application[]>([])
@@ -75,16 +73,6 @@ export default function PedidoPage() {
 
   const channelRef = useRef<RealtimeChannel | null>(null)
 
-  async function fetchApps(demandId: string) {
-    const { data: apps, error } = await supabase
-      .from('applications')
-      .select('id, professional_id, message, status, created_at, users ( username, full_name, avatar_url ), professional_profiles ( headline, avg_rating, total_jobs_completed )')
-      .eq('demand_id', demandId)
-      .order('created_at', { ascending: true })
-    console.log('[pedido] candidaturas:', { count: apps?.length ?? 0, error: error?.message ?? null })
-    if (apps) setApplications(apps as unknown as Application[])
-  }
-
   useEffect(() => {
     async function load() {
       // Auth
@@ -98,9 +86,8 @@ export default function PedidoPage() {
       }
 
       // Fetch demand
-      const { data: d, error: dErr } = await supabase
+      const { data: d } = await supabase
         .from('demands').select('*').eq('id', id).single()
-      console.log('[pedido] demand:', { found: !!d, error: dErr?.message ?? null })
       if (!d) { router.push('/'); return }
       setDemand(d as unknown as Demand)
 
@@ -108,49 +95,72 @@ export default function PedidoPage() {
       const anonTok = getAnonToken()
       const demand  = d as unknown as Demand
       const owned   =
-        (dbUserId != null && dbUserId === demand.user_id) ||
-        (demand.anonymous_token != null && demand.anonymous_token === anonTok)
-      console.log('[pedido] ownership:', { dbUserId, demand_user_id: demand.user_id, anonTok, owned })
+        (dbUserId && dbUserId === demand.user_id) ||
+        (demand.anonymous_token && demand.anonymous_token === anonTok)
       setIsOwner(!!owned)
 
-      // Fetch applications if owner
-      if (owned) await fetchApps(id)
+      // Fetch enriched applications if owner
+      if (owned) {
+        const { data: apps } = await supabase
+          .from('applications')
+          .select(`
+            id, professional_id, message, status, created_at,
+            users!inner ( username, full_name, avatar_url ),
+            professional_profiles ( headline, avg_rating, total_jobs_completed )
+          `)
+          .eq('demand_id', id)
+          .order('created_at', { ascending: true })
+        setApplications((apps ?? []) as unknown as Application[])
+      }
 
       // Already applied?
       if (dbUserId) {
         const { data: mine } = await supabase
           .from('applications')
-          .select('id').eq('demand_id', id).eq('professional_id', dbUserId).maybeSingle()
+          .select('id').eq('demand_id', id).eq('professional_id', dbUserId).single()
         if (mine) setApplied(true)
       }
 
       setLoading(false)
 
-      // Realtime
+      // Realtime — candidate_count on demand
       channelRef.current = supabase
         .channel(`demand-${id}`)
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'demands', filter: `id=eq.${id}` },
           (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
-            const u = payload.new as Record<string, unknown>
+            const updated = payload.new as Record<string, unknown>
             setDemand(prev => prev
-              ? { ...prev, candidate_count: u.candidate_count as number, status: u.status as string }
+              ? { ...prev, candidate_count: updated.candidate_count as number, status: updated.status as string }
               : prev
             )
           }
         )
+        // Also listen for new applications if owner
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'applications', filter: `demand_id=eq.${id}` },
-          () => { if (owned) fetchApps(id) }
+          async () => {
+            if (!owned) return
+            const { data: apps } = await supabase
+              .from('applications')
+              .select(`
+                id, professional_id, message, status, created_at,
+                users!inner ( username, full_name, avatar_url ),
+                professional_profiles ( headline, avg_rating, total_jobs_completed )
+              `)
+              .eq('demand_id', id)
+              .order('created_at', { ascending: true })
+            setApplications((apps ?? []) as unknown as Application[])
+          }
         )
         .subscribe((_s: `${REALTIME_SUBSCRIBE_STATES}`) => { /* noop */ })
     }
 
     load()
     return () => { if (channelRef.current) supabase.removeChannel(channelRef.current) }
-  }, [id, router]) // supabase is stable via useRef — not in deps
+  }, [id, supabase, router])
 
   /* ── Apply ── */
   async function handleApply() {
