@@ -87,7 +87,7 @@ export default function FeedPage() {
 
     let query = supabase
       .from('demands')
-      .select(`id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, users!left(username)`)
+      .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
       .eq('status', 'open')
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
@@ -101,12 +101,10 @@ export default function FeedPage() {
     if (!data || data.length < PAGE_SIZE) setHasMore(false)
     if (data) {
       const mapped: DemandFeedItem[] = (data as unknown as Record<string, unknown>[]).map(r => {
-        const userObj = r.users as { username?: string } | null
-        const username = userObj?.username as string | null
-        const anonTok  = r.anonymous_token as string | null
+        const anonTok = r.anonymous_token as string | null
         return {
           id:               r.id as string,
-          username:         username ?? (anonTok ? anonUsername(anonTok) : '@anon'),
+          username:         anonTok ? anonUsername(anonTok) : '@usuário',
           description:      r.description as string,
           location_city:    (r.location_city as string | null) ?? '',
           location_country: (r.location_country as string | null) ?? 'BR',

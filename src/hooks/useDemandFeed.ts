@@ -56,11 +56,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     setLoading(true)
     let query = supabase
       .from('demands')
-      .select(`
-        id, description, location_city, location_country,
-        candidate_count, created_at, media_urls, anonymous_token,
-        users!left(username)
-      `)
+      .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
       .eq('status', 'open')
       .order('created_at', { ascending: false })
       .limit(MAX_ITEMS)
@@ -75,12 +71,12 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
       })
     }
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) {
+      console.error('[useDemandFeed] fetchInitial error:', error.code, error.message, error.details)
+    }
     if (data) {
-      setItems((data as unknown as Record<string, unknown>[]).map(r => {
-        const userObj = r.users as { username?: string } | null
-        return normalize({ ...r, username: userObj?.username ?? null })
-      }))
+      setItems((data as unknown as Record<string, unknown>[]).map(r => normalize(r)))
     }
     setLoading(false)
   }, [opts.cityFilter, opts.stateFilter, opts.countryFilter, opts.keyword, supabase])
