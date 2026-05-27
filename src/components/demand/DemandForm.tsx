@@ -31,7 +31,11 @@ function PinIcon() {
   )
 }
 
-export default function DemandForm() {
+interface DemandFormProps {
+  onFormChange?: (data: { description: string; locationCity: string; locationState: string }) => void
+}
+
+export default function DemandForm({ onFormChange }: DemandFormProps = {}) {
   const router    = useRouter()
   const supabase  = createClient()
   const { createDemand, loading: submitting, error: submitError } = useCreateDemand()
@@ -85,6 +89,11 @@ export default function DemandForm() {
   }, [])
 
   useEffect(() => { detectLocation() }, [detectLocation])
+
+  // Notify parent of form changes for live preview
+  useEffect(() => {
+    onFormChange?.({ description, locationCity, locationState })
+  }, [description, locationCity, locationState, onFormChange])
 
   /* ── Media handling ── */
   async function handleFiles(files: FileList) {
