@@ -19,6 +19,10 @@ export interface DemandFeedItem {
 
 const MAX_ITEMS = 20
 
+// ── DIAGNÓSTICO (temporário) — contadores globais que sobrevivem a remontagens ──
+let MOUNT_COUNT = 0
+let FETCH_COUNT = 0
+
 /** Rejects if the promise/thenable doesn't settle within `ms`. */
 function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -68,6 +72,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   const reqIdRef = useRef(0)
 
   const fetchInitial = useCallback(async () => {
+    FETCH_COUNT++ // diagnóstico
     const myReq = ++reqIdRef.current // only the latest fetch is allowed to write state
     setLoading(true)
     try {
@@ -127,6 +132,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
 
   useEffect(() => {
     let active = true
+    MOUNT_COUNT++ // diagnóstico — incrementa a cada montagem do hook
 
     // Unique channel name per mount avoids collisions (e.g. StrictMode double-mount).
     const channel = supabase
@@ -197,5 +203,5 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps — mount once
 
-  return { items, loading, status, error }
+  return { items, loading, status, error, debug: { mounts: MOUNT_COUNT, fetches: FETCH_COUNT } }
 }
