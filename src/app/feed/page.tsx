@@ -208,8 +208,9 @@ export default function FeedPage() {
           </span>
         </div>
 
-        {/* Cards */}
-        {loading ? (
+        {/* Cards — only show the spinner on the very first load (no items yet),
+            so an eventual refetch never makes the list vanish/flicker. */}
+        {loading && allItems.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
             <span style={{ width: 24, height: 24, border: '2px solid #222', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
           </div>

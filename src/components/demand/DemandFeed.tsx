@@ -62,7 +62,7 @@ export default function DemandFeed({ cityFilter, stateFilter, countryFilter, key
 
       {/* Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading
+        {loading && items.length === 0
           ? [1, 2, 3].map(i => <SkeletonCard key={i} />)
           : items.length === 0
           ? (

@@ -65,7 +65,10 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     }
   }
 
+  const reqIdRef = useRef(0)
+
   const fetchInitial = useCallback(async () => {
+    const myReq = ++reqIdRef.current // only the latest fetch is allowed to write state
     setLoading(true)
     try {
       const { data, error } = await withTimeout(
@@ -77,6 +80,8 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
           .limit(MAX_ITEMS),
         12_000,
       ) as { data: Record<string, unknown>[] | null; error: { code?: string; message?: string; hint?: string } | null }
+
+      if (myReq !== reqIdRef.current) return // superseded by a newer fetch — don't clobber
 
       if (error) {
         console.error('[useDemandFeed] erro:', error.code, error.message, error.hint)
@@ -100,20 +105,28 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
         } catch { /* non-fatal — fall back to generic name */ }
       }
 
+      if (myReq !== reqIdRef.current) return // superseded
       setItems(rows.map(r => normalize(r, nameMap[r.user_id as string])))
     } catch (e) {
       console.error('[useDemandFeed] fetch falhou/timeout:', e)
-      setError(e instanceof Error ? `falha: ${e.message}` : 'falha desconhecida')
+      if (myReq === reqIdRef.current) setError(e instanceof Error ? `falha: ${e.message}` : 'falha desconhecida')
     } finally {
-      setLoading(false)
+      if (myReq === reqIdRef.current) setLoading(false)
     }
   }, [opts.cityFilter, opts.stateFilter, opts.countryFilter, opts.keyword]) // supabase is stable via useRef
 
+  // ── Fetch on mount + only when filters change (by value) ──
+  useEffect(() => {
+    fetchInitial()
+  }, [fetchInitial])
+
+  // ── Realtime subscription: set up ONCE on mount, independent of refetches.
+  //    (Previously this lived in the same effect as the fetch, so any refetch
+  //     tore down and recreated the channel → online/offline + content flicker.)
   const MAX_REALTIME_RETRIES = 5
 
   useEffect(() => {
     let active = true
-    fetchInitial()
 
     // Unique channel name per mount avoids collisions (e.g. StrictMode double-mount).
     const channel = supabase
@@ -182,7 +195,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
       if (retryRef.current) clearTimeout(retryRef.current)
       supabase.removeChannel(channel)
     }
-  }, [fetchInitial]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps — mount once
 
   return { items, loading, status, error }
 }
