@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Disabled: React StrictMode double-mounts effects in dev, which breaks the
+  // Supabase auth lock (navigator.locks) — leaving a lock dangling and freezing
+  // every query. Production never double-mounts, so this only affects dev.
+  reactStrictMode: false,
+
   async headers() {
     return [
       {
