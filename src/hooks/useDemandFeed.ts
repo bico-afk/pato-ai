@@ -109,33 +109,34 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     }
   }, [opts.cityFilter, opts.stateFilter, opts.countryFilter, opts.keyword]) // supabase is stable via useRef
 
-  function subscribe() {
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
-    }
+  const MAX_REALTIME_RETRIES = 5
 
+  useEffect(() => {
+    let active = true
+    fetchInitial()
+
+    // Unique channel name per mount avoids collisions (e.g. StrictMode double-mount).
     const channel = supabase
-      .channel('demands-feed')
+      .channel(`demands-feed-${Math.random().toString(36).slice(2, 9)}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'demands' },
         async (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          if (!active) return
           const raw = payload.new as Record<string, unknown>
-          // Fetch username separately if user_id present
           let usersObj: { username?: string } | null = null
           const userId = raw.user_id as string | null
           if (userId) {
-            const { data } = await supabase
-              .from('users').select('username').eq('id', userId).single()
-            usersObj = data ? { username: data.username as string } : null
+            try {
+              const { data } = await supabase.from('users').select('username').eq('id', userId).single()
+              usersObj = data ? { username: data.username as string } : null
+            } catch { /* ignore */ }
           }
-          const item: DemandFeedItem = {
-            ...normalize({ ...raw, users: usersObj }),
-            isNew: true,
-          }
+          if (!active) return
+          const item: DemandFeedItem = { ...normalize({ ...raw, users: usersObj }), isNew: true }
           setItems(prev => {
+            if (prev.some(i => i.id === item.id)) return prev
             const next = [item, ...prev].slice(0, MAX_ITEMS)
-            // Clear isNew after animation
             setTimeout(() => {
               setItems(cur => cur.map(i => i.id === item.id ? { ...i, isNew: false } : i))
             }, 400)
@@ -147,6 +148,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'demands' },
         (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          if (!active) return
           const raw = payload.new as Record<string, unknown>
           setItems(prev => prev.map(i =>
             i.id === raw.id
@@ -156,28 +158,29 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
         }
       )
       .subscribe((s: `${REALTIME_SUBSCRIBE_STATES}`) => {
+        if (!active) return
         if (s === 'SUBSCRIBED') {
           setStatus('connected')
           retryCount.current = 0
-        } else if (s === 'CLOSED' || s === 'CHANNEL_ERROR') {
+        } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') {
+          // Reconnect a few times with growing backoff, then give up quietly.
+          // (CLOSED is intentional teardown — never reconnect on it, to avoid
+          //  the connect/disconnect flicker loop.)
           setStatus('disconnected')
-          // Exponential backoff reconnect
-          const delay = Math.min(1000 * 2 ** retryCount.current, 30_000)
-          retryCount.current++
-          retryRef.current = setTimeout(subscribe, delay)
+          if (retryCount.current < MAX_REALTIME_RETRIES) {
+            const delay = Math.min(2_000 * 2 ** retryCount.current, 30_000)
+            retryCount.current++
+            retryRef.current = setTimeout(() => { if (active) channel.subscribe() }, delay)
+          }
         }
       })
 
     channelRef.current = channel
-  }
-
-  useEffect(() => {
-    fetchInitial()
-    subscribe()
 
     return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current)
+      active = false
       if (retryRef.current) clearTimeout(retryRef.current)
+      supabase.removeChannel(channel)
     }
   }, [fetchInitial]) // eslint-disable-line react-hooks/exhaustive-deps
 
