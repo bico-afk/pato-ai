@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { createPublicClient } from '@/lib/supabase/public'
 import { getAnonToken } from '@/lib/anonymous'
 import AuthForm from '@/components/auth/AuthForm'
 import type { RealtimePostgresChangesPayload, REALTIME_SUBSCRIBE_STATES, RealtimeChannel } from '@supabase/supabase-js'
@@ -52,12 +53,23 @@ function timeAgo(iso: string) {
 const initials = (n: string) =>
   (n ?? '').split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?'
 
+/** Rejects if the promise/thenable doesn't settle within `ms` — guards against
+ *  the session client's getSession() hanging during a token refresh. */
+function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
+
 /* ═══════════════════════════════════════════════════════════ */
 export default function PedidoPage() {
   const { id }   = useParams<{ id: string }>()
   const router   = useRouter()
-  const supabaseRef = useRef(createClient())
+  const supabaseRef = useRef(createClient())          // session client — for auth-dependent writes
   const supabase    = supabaseRef.current
+  const pubRef      = useRef(createPublicClient())    // anon client — for public reads (never hangs)
+  const pub         = pubRef.current
 
   const [demand,        setDemand]        = useState<Demand | null>(null)
   const [applications,  setApplications]  = useState<Application[]>([])
@@ -76,56 +88,63 @@ export default function PedidoPage() {
 
   useEffect(() => {
     async function load() {
-      // Auth
-      const { data: { session } } = await supabase.auth.getSession()
+      // 1) PUBLIC read of the demand — the page opens regardless of auth state.
+      const { data: d } = await pub.from('demands').select('*').eq('id', id).single()
+      if (!d) { router.push('/'); return }
+      const demand = d as unknown as Demand
+      setDemand(demand)
+
+      // Anonymous ownership needs no auth (token from localStorage).
+      const anonTok = getAnonToken()
+      let owned = !!(demand.anonymous_token && demand.anonymous_token === anonTok)
+      setIsOwner(owned)
+      setLoading(false) // page is ready to render NOW
+
+      // 2) Auth-dependent parts — guarded so a hanging session can't freeze the page.
       let dbUserId: string | null = null
-      if (session?.user) {
-        const { data: userRow } = await supabase
-          .from('users').select('id').eq('auth_id', session.user.id).single()
-        dbUserId = (userRow as Record<string, unknown> | null)?.id as string | null ?? null
-        setAuthUserId(dbUserId)
+      try {
+        const res = await withTimeout(supabase.auth.getSession(), 6_000)
+        const session = (res as { data?: { session?: { user?: { id: string } } } })?.data?.session
+        if (session?.user) {
+          const { data: userRow } = await withTimeout(
+            supabase.from('users').select('id').eq('auth_id', session.user.id).maybeSingle(), 6_000,
+          ) as { data: { id: string } | null }
+          dbUserId = userRow?.id ?? null
+          setAuthUserId(dbUserId)
+          if (dbUserId && dbUserId === demand.user_id) { owned = true; setIsOwner(true) }
+        }
+      } catch (e) {
+        console.warn('[pedido] auth/identidade indisponivel:', e)
       }
 
-      // Fetch demand
-      const { data: d } = await supabase
-        .from('demands').select('*').eq('id', id).single()
-      if (!d) { router.push('/'); return }
-      setDemand(d as unknown as Demand)
-
-      // Ownership
-      const anonTok = getAnonToken()
-      const demand  = d as unknown as Demand
-      const owned   =
-        (dbUserId && dbUserId === demand.user_id) ||
-        (demand.anonymous_token && demand.anonymous_token === anonTok)
-      setIsOwner(!!owned)
-
-      // Fetch enriched applications if owner
+      // Enriched applications if owner
       if (owned) {
-        const { data: apps } = await supabase
-          .from('applications')
-          .select(`
-            id, professional_id, message, status, created_at,
-            users ( username, full_name, avatar_url ),
-            professional_profiles ( headline, avg_rating, total_jobs_completed )
-          `)
-          .eq('demand_id', id)
-          .order('created_at', { ascending: true })
-        setApplications((apps ?? []) as unknown as Application[])
+        try {
+          const { data: apps } = await withTimeout(supabase
+            .from('applications')
+            .select(`
+              id, professional_id, message, status, created_at,
+              users ( username, full_name, avatar_url ),
+              professional_profiles ( headline, avg_rating, total_jobs_completed )
+            `)
+            .eq('demand_id', id)
+            .order('created_at', { ascending: true }), 6_000) as { data: Application[] | null }
+          setApplications((apps ?? []) as unknown as Application[])
+        } catch { /* degrade silently */ }
       }
 
       // Already applied?
       if (dbUserId) {
-        const { data: mine } = await supabase
-          .from('applications')
-          .select('id').eq('demand_id', id).eq('professional_id', dbUserId).single()
-        if (mine) setApplied(true)
+        try {
+          const { data: mine } = await withTimeout(supabase
+            .from('applications')
+            .select('id').eq('demand_id', id).eq('professional_id', dbUserId).maybeSingle(), 6_000) as { data: { id: string } | null }
+          if (mine) setApplied(true)
+        } catch { /* ignore */ }
       }
 
-      setLoading(false)
-
-      // Realtime — candidate_count on demand
-      channelRef.current = supabase
+      // Realtime — candidate_count on demand (public client, never hangs)
+      channelRef.current = pub
         .channel(`demand-${id}`)
         .on(
           'postgres_changes',
@@ -138,52 +157,36 @@ export default function PedidoPage() {
             )
           }
         )
-        // Also listen for new applications if owner
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'applications', filter: `demand_id=eq.${id}` },
-          async () => {
-            if (!owned) return
-            const { data: apps } = await supabase
-              .from('applications')
-              .select(`
-                id, professional_id, message, status, created_at,
-                users!inner ( username, full_name, avatar_url ),
-                professional_profiles ( headline, avg_rating, total_jobs_completed )
-              `)
-              .eq('demand_id', id)
-              .order('created_at', { ascending: true })
-            setApplications((apps ?? []) as unknown as Application[])
-          }
-        )
         .subscribe((_s: `${REALTIME_SUBSCRIBE_STATES}`) => { /* noop */ })
     }
 
     load()
-    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current) }
+    return () => { if (channelRef.current) pub.removeChannel(channelRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router])
 
   /* ── Apply ── */
   async function handleApply() {
     if (!authUserId) { setShowAuthModal(true); return }
+    if (isOwner) { setApplyError('Você não pode se candidatar ao seu próprio pedido.'); return }
     if (applyMsg.trim().length < 10) { setApplyError('Mínimo 10 caracteres'); return }
     setApplying(true); setApplyError('')
     try {
-      const { data: inserted, error } = await supabase.from('applications').insert({
+      const { data: inserted, error } = await withTimeout(supabase.from('applications').insert({
         demand_id:       id,
         professional_id: authUserId,
         message:         applyMsg.trim(),
         status:          'pending',
-      }).select()
-      console.log('[apply] insert result:', { data: inserted, error, professional_id: authUserId })
+      }).select(), 10_000) as { data: unknown; error: { code?: string; message?: string; details?: string; hint?: string } | null }
       if (error) {
         console.error('[apply] error:', error.code, error.message, error.details, error.hint)
-        throw error
+        throw new Error(error.message ?? 'Erro ao candidatar')
       }
+      void inserted
       setApplied(true); setShowApply(false)
     } catch (e) {
-      setApplyError(e instanceof Error ? e.message : 'Erro ao candidatar')
+      const msg = e instanceof Error ? e.message : 'Erro ao candidatar'
+      setApplyError(msg === 'timeout' ? 'Demorou demais. Tente de novo.' : msg)
     } finally {
       setApplying(false)
     }

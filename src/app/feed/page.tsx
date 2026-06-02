@@ -72,7 +72,7 @@ export default function FeedPage() {
     keyword:       debouncedKeyword || undefined,
   }), [filter, userCity, userState, debouncedKeyword])
 
-  const { items: realtimeItems, loading, status, error: feedError, debug } = useDemandFeed(feedOpts)
+  const { items: realtimeItems, loading, status, error: feedError } = useDemandFeed(feedOpts)
 
   // Reset pagination when filter/keyword changes
   useEffect(() => {
@@ -154,11 +154,6 @@ export default function FeedPage() {
 
   return (
     <div style={{ minHeight: '100dvh', background: '#000', fontFamily: "'Inter', system-ui, sans-serif" }}>
-
-      {/* DIAGNÓSTICO temporário — remover depois */}
-      <div style={{ position: 'fixed', top: 56, right: 8, zIndex: 9999, background: '#111', border: '1px solid #333', borderRadius: 6, padding: '4px 8px', fontFamily: 'monospace', fontSize: 11, color: '#0f0' }}>
-        mounts:{debug.mounts} fetches:{debug.fetches} items:{realtimeItems.length} load:{String(loading)} {status}
-      </div>
 
       <main style={{ maxWidth: 680, margin: '0 auto', padding: '32px 20px 80px' }}>
 
