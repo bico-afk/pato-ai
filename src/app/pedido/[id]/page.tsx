@@ -89,9 +89,15 @@ export default function PedidoPage() {
   useEffect(() => {
     async function load() {
       // 1) PUBLIC read of the demand — the page opens regardless of auth state.
-      const { data: d } = await pub.from('demands').select('*').eq('id', id).single()
+      const { data: d } = await pub.from('demands').select('*').eq('id', id).maybeSingle()
       if (!d) { router.push('/'); return }
-      const demand = d as unknown as Demand
+      const raw = d as unknown as Demand
+      // Normalize nullable columns so the UI can assume arrays/numbers.
+      const demand: Demand = {
+        ...raw,
+        media_urls:      raw.media_urls ?? [],
+        candidate_count: raw.candidate_count ?? 0,
+      }
       setDemand(demand)
 
       // Anonymous ownership needs no auth (token from localStorage).
@@ -272,7 +278,7 @@ export default function PedidoPage() {
         )}
 
         {/* Media */}
-        {demand.media_urls.length > 0 && (
+        {(demand.media_urls?.length ?? 0) > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
             {demand.media_urls.map((url, i) => {
               const isVideo = /\.(mp4|mov)$/i.test(url)
