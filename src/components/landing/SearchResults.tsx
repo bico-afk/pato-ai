@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createPublicClient } from '@/lib/supabase/public'
 import { getAnonToken } from '@/lib/anonymous'
 import type { SearchResult } from '@/hooks/useSearch'
 
@@ -107,7 +107,7 @@ interface Props {
 export default function SearchResults({ results, loading, error, searched, query, cidade }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
-  const supabaseRef = useRef(createClient())
+  const supabaseRef = useRef(createPublicClient())
   const supabase    = supabaseRef.current
 
   // Auto-publish state — when a search returns no professionals, the query

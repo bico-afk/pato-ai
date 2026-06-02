@@ -152,7 +152,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
         >
           {loading
             ? <span style={{ width: 14, height: 14, border: '2px solid #333', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
-            : 'Buscar'}
+            : 'Publicar'}
         </button>
       </div>
 
