@@ -36,9 +36,8 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         input,
-        languageCode:        'pt-BR',
-        regionCode:          'BR',
-        includedRegionCodes: ['br'],
+        languageCode: 'pt-BR',
+        regionCode:   'BR', // bias toward Brazil, but allow worldwide results
         ...(sessionToken ? { sessionToken } : {}),
       }),
     })

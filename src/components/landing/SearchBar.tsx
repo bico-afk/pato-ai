@@ -159,7 +159,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
   const canSubmit = query.trim().length > 0 && !loading && medias.every(m => !m.uploading)
 
   return (
-    <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+    <form onSubmit={handleSubmit} style={{ width: '100%', position: 'relative' }}>
       {/* ── Main bar ── */}
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, background: '#111', border: '1px solid #333', borderRadius: 8, overflow: 'hidden', width: '100%' }}>
 
@@ -178,19 +178,6 @@ export default function SearchBar({ onSearch, loading }: Props) {
             placeholder="Seu endereço"
             style={{ flex: 1, minWidth: 0, height: 56, background: 'transparent', border: 'none', color: location ? '#00d4ff' : '#aaa', fontSize: 13, padding: '0 8px 0 0', outline: 'none' }}
           />
-          {showDrop && suggestions.length > 0 && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, width: 320, maxWidth: '90vw', background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: 10, zIndex: 50, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.7)' }}>
-              {suggestions.map(s => (
-                <button key={s.placeId} type="button" onMouseDown={() => selectSuggestion(s)}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid #1a1a1a', cursor: 'pointer', fontFamily: 'inherit' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#161616')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                  <span style={{ display: 'block', fontSize: 13, color: '#fff', fontWeight: 600 }}>{s.main}</span>
-                  {s.sub && <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 1 }}>{s.sub}</span>}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Query input */}
@@ -213,6 +200,21 @@ export default function SearchBar({ onSearch, loading }: Props) {
             : 'Publicar'}
         </button>
       </div>
+
+      {/* Address suggestions — rendered OUTSIDE the bar so overflow:hidden can't clip it */}
+      {showDrop && suggestions.length > 0 && (
+        <div style={{ position: 'absolute', top: 60, left: 0, width: 380, maxWidth: '100%', background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: 10, zIndex: 60, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.75)' }}>
+          {suggestions.map(s => (
+            <button key={s.placeId} type="button" onMouseDown={() => selectSuggestion(s)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '11px 14px', background: 'none', border: 'none', borderBottom: '1px solid #1a1a1a', cursor: 'pointer', fontFamily: 'inherit' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#161616')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+              <span style={{ display: 'block', fontSize: 13, color: '#fff', fontWeight: 600 }}>📍 {s.main}</span>
+              {s.sub && <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>{s.sub}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Privacy note */}
       <p style={{ fontSize: 12, color: '#666', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.5 }}>
