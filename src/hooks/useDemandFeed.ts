@@ -19,6 +19,14 @@ export interface DemandFeedItem {
 
 const MAX_ITEMS = 20
 
+/** Rejects if the promise/thenable doesn't settle within `ms`. */
+function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
+
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
 interface UseDemandFeedOptions {
@@ -39,10 +47,11 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   const supabaseRef  = useRef(createClient())
   const supabase     = supabaseRef.current
 
-  function normalize(row: Record<string, unknown>): DemandFeedItem {
+  function normalize(row: Record<string, unknown>, resolvedName?: string): DemandFeedItem {
     const usersObj = row.users as { username?: string } | null
     const anonTok  = row.anonymous_token as string | null
-    const username = usersObj?.username ?? (anonTok ? `anon_${anonTok.substring(0, 6)}` : '@usuário')
+    const name     = resolvedName ?? usersObj?.username
+    const username = name ? `@${name}` : anonTok ? anonUsername(anonTok) : '@usuário'
     return {
       id:               row.id as string,
       username,
@@ -56,28 +65,44 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   }
 
   const fetchInitial = useCallback(async () => {
-    console.log('[useDemandFeed] iniciando fetch...', process.env.NEXT_PUBLIC_SUPABASE_URL)
     setLoading(true)
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('demands')
+          .select('*')
+          .eq('status', 'open')
+          .order('created_at', { ascending: false })
+          .limit(MAX_ITEMS),
+        12_000,
+      ) as { data: Record<string, unknown>[] | null; error: { code?: string; message?: string; hint?: string } | null }
 
-    const { data, error } = await supabase
-      .from('demands')
-      .select('*')
-      .eq('status', 'open')
-      .order('created_at', { ascending: false })
-      .limit(MAX_ITEMS)
+      if (error) {
+        console.error('[useDemandFeed] erro:', error.code, error.message, error.hint)
+        return
+      }
 
-    console.log('[useDemandFeed] resultado:', { count: data?.length ?? 0, error: error?.message ?? null, code: error?.code ?? null, hint: error?.hint ?? null })
+      const rows = (data ?? []) as Record<string, unknown>[]
 
-    if (error) {
-      console.error('[useDemandFeed] erro:', error.code, error.message, error.hint)
+      // Enrich usernames for logged-in posters (anon posters use their token)
+      const userIds = [...new Set(rows.map(r => r.user_id as string | null).filter(Boolean))] as string[]
+      let nameMap: Record<string, string> = {}
+      if (userIds.length) {
+        try {
+          const { data: us } = await withTimeout(
+            supabase.from('users').select('id, username').in('id', userIds),
+            8_000,
+          ) as { data: { id: string; username: string }[] | null }
+          if (us) nameMap = Object.fromEntries(us.map(u => [u.id, u.username]))
+        } catch { /* non-fatal — fall back to generic name */ }
+      }
+
+      setItems(rows.map(r => normalize(r, nameMap[r.user_id as string])))
+    } catch (e) {
+      console.error('[useDemandFeed] fetch falhou/timeout:', e)
+    } finally {
       setLoading(false)
-      return
     }
-
-    if (data && data.length > 0) {
-      setItems((data as unknown as Record<string, unknown>[]).map(r => normalize(r)))
-    }
-    setLoading(false)
   }, [opts.cityFilter, opts.stateFilter, opts.countryFilter, opts.keyword]) // supabase is stable via useRef
 
   function subscribe() {

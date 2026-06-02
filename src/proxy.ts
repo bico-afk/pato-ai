@@ -17,6 +17,12 @@ function isProtected(pathname: string): boolean {
 
 /* ── Proxy (Next.js 16 middleware) ──────────────────────────── */
 export async function proxy(request: NextRequest) {
+  // Public routes don't need an auth round-trip — pass straight through.
+  // (Session refresh for logged-in users happens client-side via useAuth.)
+  if (!isProtected(request.nextUrl.pathname)) {
+    return NextResponse.next({ request })
+  }
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -36,11 +42,10 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Always refresh session to keep auth cookies current
+  // Validate session only for protected routes
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Redirect unauthenticated users away from protected routes
-  if (isProtected(request.nextUrl.pathname) && !user) {
+  if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     url.searchParams.set('next', request.nextUrl.pathname)

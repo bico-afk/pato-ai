@@ -49,14 +49,16 @@ function ProfCard({ result }: { result: SearchResult }) {
             </span>
           </div>
         </div>
-        {/* Distance badge */}
-        <span style={{
-          flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#00d4ff',
-          background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.15)',
-          borderRadius: 99, padding: '2px 8px',
-        }}>
-          {result.distanceKm} km
-        </span>
+        {/* Distance badge — only when a distance is known */}
+        {result.distanceKm > 0 && (
+          <span style={{
+            flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#00d4ff',
+            background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.15)',
+            borderRadius: 99, padding: '2px 8px',
+          }}>
+            {result.distanceKm} km
+          </span>
+        )}
       </div>
 
       {/* Description */}

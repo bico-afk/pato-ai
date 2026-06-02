@@ -5,6 +5,7 @@
       "name": "pato-ai",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
+      "cwd": "C:\\Users\\guibo\\pato-ai",
       "port": 3000
     }
   ]

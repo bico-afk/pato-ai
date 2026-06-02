@@ -19,6 +19,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ]
 
 const PAGE_SIZE = 20
+const REALTIME_COUNT = 20 // first page is served by the realtime hook (useDemandFeed)
 
 function useDebounce<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -84,40 +85,58 @@ export default function FeedPage() {
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
-    const offset = (page + 1) * PAGE_SIZE + PAGE_SIZE // skip the realtime page
+    // Continue right after the realtime page (rows 0..19) — no gap.
+    const offset = REALTIME_COUNT + page * PAGE_SIZE
 
-    let query = supabase
-      .from('demands')
-      .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
-      .eq('status', 'open')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1)
+    try {
+      let query = supabase
+        .from('demands')
+        .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1)
 
-    if (filter === 'cidade' && userCity)  query = query.eq('location_city', userCity)
-    if (filter === 'estado' && userState) query = query.eq('location_state', userState)
-    if (filter === 'brasil')              query = query.eq('location_country', 'BR')
-    if (debouncedKeyword) query = query.textSearch('description', debouncedKeyword, { type: 'plain', config: 'portuguese' })
+      if (filter === 'cidade' && userCity)  query = query.eq('location_city', userCity)
+      if (filter === 'estado' && userState) query = query.eq('location_state', userState)
+      if (filter === 'brasil')              query = query.eq('location_country', 'BR')
+      if (debouncedKeyword) query = query.textSearch('description', debouncedKeyword, { type: 'plain', config: 'portuguese' })
 
-    const { data } = await query
-    if (!data || data.length < PAGE_SIZE) setHasMore(false)
-    if (data) {
-      const mapped: DemandFeedItem[] = (data as unknown as Record<string, unknown>[]).map(r => {
-        const anonTok = r.anonymous_token as string | null
-        return {
-          id:               r.id as string,
-          username:         anonTok ? anonUsername(anonTok) : '@usuário',
-          description:      r.description as string,
-          location_city:    (r.location_city as string | null) ?? '',
-          location_country: (r.location_country as string | null) ?? 'BR',
-          candidate_count:  (r.candidate_count as number | null) ?? 0,
-          created_at:       r.created_at as string,
-          media_urls:       (r.media_urls as string[] | null) ?? [],
+      const { data } = await query
+      if (!data || data.length < PAGE_SIZE) setHasMore(false)
+      if (data && data.length > 0) {
+        const rows = data as unknown as Record<string, unknown>[]
+
+        // Enrich usernames for logged-in posters
+        const userIds = [...new Set(rows.map(r => r.user_id as string | null).filter(Boolean))] as string[]
+        let nameMap: Record<string, string> = {}
+        if (userIds.length) {
+          const { data: us } = await supabase.from('users').select('id, username').in('id', userIds)
+          if (us) nameMap = Object.fromEntries((us as { id: string; username: string }[]).map(u => [u.id, u.username]))
         }
-      })
-      setExtraItems(prev => [...prev, ...mapped])
-      setPage(p => p + 1)
+
+        const mapped: DemandFeedItem[] = rows.map(r => {
+          const anonTok = r.anonymous_token as string | null
+          const name    = nameMap[r.user_id as string]
+          return {
+            id:               r.id as string,
+            username:         name ? `@${name}` : anonTok ? anonUsername(anonTok) : '@usuário',
+            description:      r.description as string,
+            location_city:    (r.location_city as string | null) ?? '',
+            location_country: (r.location_country as string | null) ?? 'BR',
+            candidate_count:  (r.candidate_count as number | null) ?? 0,
+            created_at:       r.created_at as string,
+            media_urls:       (r.media_urls as string[] | null) ?? [],
+          }
+        })
+        setExtraItems(prev => [...prev, ...mapped])
+        setPage(p => p + 1)
+      }
+    } catch (e) {
+      console.error('[feed] loadMore falhou/timeout:', e)
+      setHasMore(false)
+    } finally {
+      setLoadingMore(false)
     }
-    setLoadingMore(false)
   }, [page, loadingMore, hasMore, filter, userCity, userState, debouncedKeyword]) // supabase stable via useRef
 
   // Intersection observer for infinite scroll
