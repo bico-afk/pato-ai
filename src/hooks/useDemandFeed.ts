@@ -40,6 +40,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   const [items,      setItems]      = useState<DemandFeedItem[]>([])
   const [loading,    setLoading]    = useState(true)
   const [status,     setStatus]     = useState<ConnectionStatus>('connecting')
+  const [error,      setError]      = useState<string | null>(null)
   const channelRef   = useRef<RealtimeChannel | null>(null)
   const retryRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCount   = useRef(0)
@@ -79,9 +80,11 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
 
       if (error) {
         console.error('[useDemandFeed] erro:', error.code, error.message, error.hint)
+        setError(`${error.code ?? 'erro'}: ${error.message ?? 'desconhecido'}`)
         return
       }
 
+      setError(null)
       const rows = (data ?? []) as Record<string, unknown>[]
 
       // Enrich usernames for logged-in posters (anon posters use their token)
@@ -100,6 +103,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
       setItems(rows.map(r => normalize(r, nameMap[r.user_id as string])))
     } catch (e) {
       console.error('[useDemandFeed] fetch falhou/timeout:', e)
+      setError(e instanceof Error ? `falha: ${e.message}` : 'falha desconhecida')
     } finally {
       setLoading(false)
     }
@@ -177,5 +181,5 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     }
   }, [fetchInitial]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { items, loading, status }
+  return { items, loading, status, error }
 }

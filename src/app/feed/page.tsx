@@ -72,7 +72,7 @@ export default function FeedPage() {
     keyword:       debouncedKeyword || undefined,
   }), [filter, userCity, userState, debouncedKeyword])
 
-  const { items: realtimeItems, loading, status } = useDemandFeed(feedOpts)
+  const { items: realtimeItems, loading, status, error: feedError } = useDemandFeed(feedOpts)
 
   // Reset pagination when filter/keyword changes
   useEffect(() => {
@@ -216,6 +216,11 @@ export default function FeedPage() {
         ) : allItems.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <p style={{ fontSize: 15, color: '#555' }}>Nenhum pedido encontrado.</p>
+            {feedError && (
+              <p style={{ fontSize: 12, color: '#ef4444', marginTop: 10, fontFamily: 'monospace' }}>
+                ⚠ {feedError}
+              </p>
+            )}
             <Link href="/nova-demanda" style={{ fontSize: 14, color: '#00d4ff', textDecoration: 'none', marginTop: 12, display: 'inline-block' }}>
               Seja o primeiro a publicar →
             </Link>

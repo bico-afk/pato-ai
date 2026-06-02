@@ -4,6 +4,31 @@
 -- ═══════════════════════════════════════════════════════════
 
 -- ───────────────────────────────────────────────────────────
+--  LEITURA PÚBLICA (corrige "feed vazio quando logado")
+--  O feed é público: anon E authenticated precisam ler.
+--  Causa do bug: policy de SELECT existia só p/ role 'anon',
+--  então usuários logados (role 'authenticated') viam ZERO.
+-- ───────────────────────────────────────────────────────────
+
+-- demands: qualquer um lê os pedidos abertos
+drop policy if exists "demands_select_public" on demands;
+create policy "demands_select_public" on demands for select
+  to anon, authenticated
+  using (true);
+
+-- users: leitura pública de perfil básico (nome/avatar no feed e cards)
+drop policy if exists "users_select_public" on users;
+create policy "users_select_public" on users for select
+  to anon, authenticated
+  using (true);
+
+-- professional_profiles: leitura pública (busca de profissionais)
+drop policy if exists "profiles_select_public" on professional_profiles;
+create policy "profiles_select_public" on professional_profiles for select
+  to anon, authenticated
+  using (true);
+
+-- ───────────────────────────────────────────────────────────
 --  REALTIME — habilita o feed "ao vivo"
 -- ───────────────────────────────────────────────────────────
 alter publication supabase_realtime add table demands;
