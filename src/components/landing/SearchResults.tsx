@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getAnonToken } from '@/lib/anonymous'
 import { useAuth } from '@/hooks/useAuth'
 import type { SearchResult } from '@/hooks/useSearch'
+import type { LocationData } from '@/lib/geo'
 
 /** Rejects if the promise/thenable doesn't settle within `ms`. */
 function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
@@ -106,15 +107,16 @@ function ProfCard({ result }: { result: SearchResult }) {
 
 /* ── SearchResults ───────────────────────────────────────── */
 interface Props {
-  results:  SearchResult[]
-  loading:  boolean
-  error:    string | null
-  searched: boolean
-  query:    string
-  cidade:   string
+  results:   SearchResult[]
+  loading:   boolean
+  error:     string | null
+  searched:  boolean
+  query:     string
+  location:  LocationData | null
+  mediaUrls: string[]
 }
 
-export default function SearchResults({ results, loading, error, searched, query, cidade }: Props) {
+export default function SearchResults({ results, loading, error, searched, query, location, mediaUrls }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { profile } = useAuth() // logged-in user (if any) → attribute the demand to them
@@ -151,9 +153,11 @@ export default function SearchResults({ results, loading, error, searched, query
     if (publishedForRef.current === query) return // already handled this query
 
     publishedForRef.current = query
-    const parts = cidade.split(',').map(s => s.trim()).filter(Boolean)
-    const city  = parts[0] ?? ''
-    const state = parts[1] ?? ''
+    // Only city/state/country are stored as visible fields; the precise point
+    // (from the private address) is stored separately for matching.
+    const point = location?.lat != null && location?.lng != null
+      ? `SRID=4326;POINT(${location.lng} ${location.lat})`
+      : null
 
     setPublishing(true)
     setPublishError(null)
@@ -161,9 +165,11 @@ export default function SearchResults({ results, loading, error, searched, query
       const base = {
         title:            query.slice(0, 120),
         description:      query,
-        location_city:    city,
-        location_state:   state,
-        location_country: 'BR',
+        location_city:    location?.city    ?? '',
+        location_state:   location?.state   ?? '',
+        location_country: location?.country ?? 'BR',
+        location_point:   point,
+        media_urls:       mediaUrls.length ? mediaUrls : null,
         status:           'open',
         language:         'pt',
         candidate_count:  0,
@@ -204,7 +210,7 @@ export default function SearchResults({ results, loading, error, searched, query
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searched, loading, error, results.length, query, cidade])
+  }, [searched, loading, error, results.length, query, location, mediaUrls])
 
   if (!searched && !loading) return null
 
@@ -249,7 +255,7 @@ export default function SearchResults({ results, loading, error, searched, query
       {!loading && !error && results.length > 0 && (
         <>
           <p style={{ fontSize: 13, color: '#475569', marginBottom: 14 }}>
-            {results.length} profissional{results.length !== 1 ? 'is' : ''} encontrado{results.length !== 1 ? 's' : ''} perto de <span style={{ color: '#94a3b8' }}>{cidade || 'você'}</span>
+            {results.length} profissional{results.length !== 1 ? 'is' : ''} encontrado{results.length !== 1 ? 's' : ''} perto de <span style={{ color: '#94a3b8' }}>{location?.city || 'você'}</span>
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
             {results.map(r => <ProfCard key={r.id} result={r} />)}

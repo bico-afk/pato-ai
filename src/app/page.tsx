@@ -5,6 +5,7 @@ import SearchBar from '@/components/landing/SearchBar'
 import SearchResults from '@/components/landing/SearchResults'
 import DemandFeed from '@/components/demand/DemandFeed'
 import { useSearch } from '@/hooks/useSearch'
+import type { LocationData } from '@/lib/geo'
 
 /* ── SVG icons for Mission section ─────────────────────────── */
 function IconSearch() {
@@ -45,13 +46,15 @@ function IconWhatsApp() {
 /* ── Page ───────────────────────────────────────────────────── */
 export default function Home() {
   const { results, loading, error, searched, search } = useSearch()
-  const [lastQuery,  setLastQuery]  = useState('')
-  const [lastCidade, setLastCidade] = useState('')
+  const [lastQuery,    setLastQuery]    = useState('')
+  const [lastLocation, setLastLocation] = useState<LocationData | null>(null)
+  const [lastMedia,    setLastMedia]    = useState<string[]>([])
 
-  function handleSearch(query: string, cidade: string) {
+  function handleSearch(query: string, location: LocationData | null, mediaUrls: string[]) {
     setLastQuery(query)
-    setLastCidade(cidade)
-    search(query, cidade)
+    setLastLocation(location)
+    setLastMedia(mediaUrls)
+    search(query, location?.city ?? '')
   }
 
   return (
@@ -103,7 +106,8 @@ export default function Home() {
           error={error}
           searched={searched}
           query={lastQuery}
-          cidade={lastCidade}
+          location={lastLocation}
+          mediaUrls={lastMedia}
         />
       </section>
 

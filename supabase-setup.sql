@@ -4,6 +4,24 @@
 -- ═══════════════════════════════════════════════════════════
 
 -- ───────────────────────────────────────────────────────────
+--  STORAGE: bucket de fotos/vídeos dos pedidos (fotos da barra)
+--  Cria o bucket público e libera upload p/ anon + logado.
+-- ───────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public)
+values ('demand-media', 'demand-media', true)
+on conflict (id) do nothing;
+
+drop policy if exists "demand_media_insert" on storage.objects;
+create policy "demand_media_insert" on storage.objects for insert
+  to anon, authenticated
+  with check (bucket_id = 'demand-media');
+
+drop policy if exists "demand_media_select" on storage.objects;
+create policy "demand_media_select" on storage.objects for select
+  to anon, authenticated
+  using (bucket_id = 'demand-media');
+
+-- ───────────────────────────────────────────────────────────
 --  CORRIGE: usuário anônimo só conseguia publicar 1 pedido.
 --  A constraint UNIQUE em anonymous_token impedia o 2º pedido
 --  do mesmo navegador. Um anônimo pode publicar vários pedidos.
