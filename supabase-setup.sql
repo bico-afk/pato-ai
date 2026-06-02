@@ -59,11 +59,12 @@ create policy "applications_select" on applications for select
     )
   );
 
--- profissional pode se candidatar
+-- profissional pode se candidatar — MAS NÃO ao próprio pedido
 drop policy if exists "applications_insert" on applications;
 create policy "applications_insert" on applications for insert
   with check (
     auth.uid() = (select auth_id from users where id = professional_id)
+    and professional_id is distinct from (select user_id from demands where id = demand_id)
   );
 
 -- dono pode atualizar status (aceitar/recusar)

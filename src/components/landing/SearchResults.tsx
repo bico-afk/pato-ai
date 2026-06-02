@@ -3,8 +3,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
+import { createClient } from '@/lib/supabase/client'
 import { getAnonToken } from '@/lib/anonymous'
+import { useAuth } from '@/hooks/useAuth'
 import type { SearchResult } from '@/hooks/useSearch'
+
+/** Rejects if the promise/thenable doesn't settle within `ms`. */
+function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
 
 /* ── Star rating ─────────────────────────────────────────── */
 function Stars({ rating }: { rating: number }) {
@@ -107,8 +117,11 @@ interface Props {
 export default function SearchResults({ results, loading, error, searched, query, cidade }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const { profile } = useAuth() // logged-in user (if any) → attribute the demand to them
   const supabaseRef = useRef(createPublicClient())
   const supabase    = supabaseRef.current
+  const sessionRef  = useRef(createClient())   // session client — needed to insert with user_id
+  const sessionClient = sessionRef.current
 
   // Auto-publish state — when a search returns no professionals, the query
   // becomes a published demand. The user is NEVER told there's scarcity.
@@ -145,33 +158,50 @@ export default function SearchResults({ results, loading, error, searched, query
     setPublishing(true)
     setPublishError(null)
     ;(async () => {
-      const { data, error: insErr } = await supabase
-        .from('demands')
-        .insert({
-          title:            query.slice(0, 120),
-          description:      query,
-          location_city:    city,
-          location_state:   state,
-          location_country: 'BR',
-          anonymous_token:  getAnonToken(),
-          status:           'open',
-          language:         'pt',
-          candidate_count:  0,
-        })
-        .select('id')
-        .maybeSingle()
+      const base = {
+        title:            query.slice(0, 120),
+        description:      query,
+        location_city:    city,
+        location_state:   state,
+        location_country: 'BR',
+        status:           'open',
+        language:         'pt',
+        candidate_count:  0,
+      }
 
-      if (insErr) {
-        const e = insErr as { message?: string; name?: string; code?: string }
-        console.error('[SearchResults] auto-publish error:', e.message || e.name || e.code, insErr)
+      try {
+        let data: { id: string } | null = null
+
+        if (profile?.id) {
+          // Logged in: insert via the SESSION client so RLS lets us set user_id.
+          // The demand is owned by the account → reliable ownership, can't self-apply.
+          const r = await withTimeout(
+            sessionClient.from('demands')
+              .insert({ ...base, user_id: profile.id })
+              .select('id').maybeSingle(),
+            10_000,
+          ) as { data: { id: string } | null; error: { message?: string } | null }
+          if (r.error) throw r.error
+          data = r.data
+        } else {
+          // Anonymous: insert via the public (anon) client with the browser token.
+          const r = await supabase.from('demands')
+            .insert({ ...base, anonymous_token: getAnonToken() })
+            .select('id').maybeSingle() as { data: { id: string } | null; error: { message?: string } | null }
+          if (r.error) throw r.error
+          data = r.data
+        }
+
+        setPublishError(null)
+        setPublishedId(data?.id ?? '')
+      } catch (err) {
+        const e = err as { message?: string; name?: string; code?: string }
+        console.error('[SearchResults] auto-publish error:', e.message || e.name || e.code, err)
         setPublishError('Não foi possível publicar agora. Tente novamente.')
         publishedForRef.current = null // allow retry on next search
-      } else {
-        // Success — clear any previous error and record the new demand id.
-        setPublishError(null)
-        setPublishedId((data as { id: string } | null)?.id ?? '')
+      } finally {
+        setPublishing(false)
       }
-      setPublishing(false)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searched, loading, error, results.length, query, cidade])
