@@ -33,6 +33,31 @@ export default function SearchBar({ onSearch, loading }: Props) {
   const [geoError,    setGeoError]    = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  /* ── IA (Claude) — melhora o texto do pedido sob demanda ── */
+  const [aiLoading,    setAiLoading]    = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState('')
+  const [aiError,      setAiError]      = useState('')
+
+  async function refineWithAI() {
+    const text = query.trim()
+    if (text.length < 6 || aiLoading) return
+    setAiLoading(true); setAiError(''); setAiSuggestion('')
+    try {
+      const res  = await fetch('/api/refine-demand', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'erro')
+      setAiSuggestion(json.refined as string)
+    } catch {
+      setAiError('Não consegui melhorar agora. Tente de novo.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   /* Geolocation + reverse geocoding */
   async function detectLocation() {
     if (!navigator.geolocation) { setGeoError('Geolocalização não suportada'); return }
@@ -159,6 +184,65 @@ export default function SearchBar({ onSearch, loading }: Props) {
       {/* Geo error */}
       {geoError && (
         <p style={{ fontSize: 12, color: '#ef4444', marginTop: 6, paddingLeft: 4 }}>{geoError}</p>
+      )}
+
+      {/* ── Melhorar com IA ── */}
+      {query.trim().length >= 6 && (
+        <div style={{ marginTop: 12 }}>
+          {!aiSuggestion && (
+            <button
+              type="button"
+              onClick={refineWithAI}
+              disabled={aiLoading}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.25)',
+                borderRadius: 8, padding: '7px 12px',
+                color: '#00d4ff', fontSize: 13, fontWeight: 600,
+                cursor: aiLoading ? 'default' : 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              {aiLoading
+                ? <span style={{ width: 13, height: 13, border: '2px solid rgba(0,212,255,0.3)', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
+                : <span>✨</span>}
+              {aiLoading ? 'Melhorando…' : 'Melhorar pedido com IA'}
+            </button>
+          )}
+
+          {aiError && (
+            <p style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>{aiError}</p>
+          )}
+
+          {aiSuggestion && (
+            <div style={{
+              background: '#0b1a1f', border: '1px solid rgba(0,212,255,0.25)',
+              borderRadius: 10, padding: '14px 16px', marginTop: 4,
+            }}>
+              <p style={{ fontSize: 11, color: '#00d4ff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
+                ✨ Sugestão da IA
+              </p>
+              <p style={{ fontSize: 14, color: '#fff', lineHeight: 1.6, margin: '0 0 14px' }}>
+                {aiSuggestion}
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => { setQuery(aiSuggestion); setAiSuggestion(''); inputRef.current?.focus() }}
+                  style={{ height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: '#fff', color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  Usar este texto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiSuggestion('')}
+                  style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #333', background: 'none', color: '#888', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  Manter o meu
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Secondary links ── */}
