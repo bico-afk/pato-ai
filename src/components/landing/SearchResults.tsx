@@ -162,8 +162,10 @@ export default function SearchResults({ results, loading, error, searched, query
         .maybeSingle()
 
       if (insErr) {
-        console.error('[SearchResults] auto-publish error:', insErr)
-        setPublishError('Não foi possível publicar agora. Tente novamente.')
+        const e = insErr as { message?: string; name?: string; code?: string }
+        const detail = e.message || e.name || e.code || 'erro de rede'
+        console.error('[SearchResults] auto-publish error:', detail, insErr)
+        setPublishError(`Não foi possível publicar: ${detail}`)
         publishedForRef.current = null // allow retry on next search
       } else {
         // Success — clear any previous error and record the new demand id.
