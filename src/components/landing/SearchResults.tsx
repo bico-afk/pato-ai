@@ -159,14 +159,16 @@ export default function SearchResults({ results, loading, error, searched, query
           candidate_count:  0,
         })
         .select('id')
-        .single()
+        .maybeSingle()
 
-      if (insErr || !data) {
+      if (insErr) {
         console.error('[SearchResults] auto-publish error:', insErr)
         setPublishError('Não foi possível publicar agora. Tente novamente.')
         publishedForRef.current = null // allow retry on next search
       } else {
-        setPublishedId((data as { id: string }).id)
+        // Success — clear any previous error and record the new demand id.
+        setPublishError(null)
+        setPublishedId((data as { id: string } | null)?.id ?? '')
       }
       setPublishing(false)
     })()
@@ -231,12 +233,12 @@ export default function SearchResults({ results, loading, error, searched, query
           background: '#0a1f14', border: '1px solid #1a4a2e', borderRadius: 12,
           padding: 24, textAlign: 'center',
         }}>
-          {publishing ? (
+          {(publishing || (publishedId === null && publishError === null)) ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '12px 0' }}>
               <span style={{ width: 24, height: 24, border: '2px solid #1a4a2e', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
               <p style={{ fontSize: 14, color: '#888', margin: 0 }}>Publicando seu pedido…</p>
             </div>
-          ) : publishError ? (
+          ) : publishError && publishedId === null ? (
             <p style={{ fontSize: 14, color: '#ef4444', margin: 0 }}>{publishError}</p>
           ) : (
             <>
