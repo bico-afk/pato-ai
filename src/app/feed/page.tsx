@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useDemandFeed } from '@/hooks/useDemandFeed'
@@ -63,13 +63,13 @@ export default function FeedPage() {
     }, () => {}, { timeout: 5000, maximumAge: 60_000 })
   }, [])
 
-  // Build filter opts for realtime hook (first page)
-  const feedOpts = {
+  // Build filter opts for realtime hook (first page) — memoized to keep object identity stable
+  const feedOpts = useMemo(() => ({
     cityFilter:    filter === 'cidade' ? userCity    : undefined,
     stateFilter:   filter === 'estado' ? userState   : undefined,
     countryFilter: filter === 'brasil' ? 'BR'        : filter === 'global' ? undefined : undefined,
     keyword:       debouncedKeyword || undefined,
-  }
+  }), [filter, userCity, userState, debouncedKeyword])
 
   const { items: realtimeItems, loading, status } = useDemandFeed(feedOpts)
 

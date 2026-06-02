@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { getAnonToken } from '@/lib/anonymous'
 import type { SearchResult } from '@/hooks/useSearch'
 
 /* ── Star rating ─────────────────────────────────────────── */
@@ -103,12 +105,71 @@ interface Props {
 export default function SearchResults({ results, loading, error, searched, query, cidade }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
+
+  // Auto-publish state — when a search returns no professionals, the query
+  // becomes a published demand. The user is NEVER told there's scarcity.
+  const [publishing,    setPublishing]    = useState(false)
+  const [publishedId,   setPublishedId]   = useState<string | null>(null)
+  const [publishError,  setPublishError]  = useState<string | null>(null)
+  const publishedForRef = useRef<string | null>(null) // guards one publish per query
 
   useEffect(() => {
     if (searched && ref.current) {
       ref.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
   }, [searched])
+
+  // Reset publish state whenever a new query is searched
+  useEffect(() => {
+    if (publishedForRef.current !== query) {
+      setPublishedId(null)
+      setPublishError(null)
+    }
+  }, [query])
+
+  // Auto-publish when search completes with zero results
+  useEffect(() => {
+    const noResults = searched && !loading && !error && results.length === 0 && !!query.trim()
+    if (!noResults) return
+    if (publishedForRef.current === query) return // already handled this query
+
+    publishedForRef.current = query
+    const parts = cidade.split(',').map(s => s.trim()).filter(Boolean)
+    const city  = parts[0] ?? ''
+    const state = parts[1] ?? ''
+
+    setPublishing(true)
+    setPublishError(null)
+    ;(async () => {
+      const { data, error: insErr } = await supabase
+        .from('demands')
+        .insert({
+          title:            query.slice(0, 120),
+          description:      query,
+          location_city:    city,
+          location_state:   state,
+          location_country: 'BR',
+          anonymous_token:  getAnonToken(),
+          status:           'open',
+          language:         'pt',
+          candidate_count:  0,
+        })
+        .select('id')
+        .single()
+
+      if (insErr || !data) {
+        console.error('[SearchResults] auto-publish error:', insErr)
+        setPublishError('Não foi possível publicar agora. Tente novamente.')
+        publishedForRef.current = null // allow retry on next search
+      } else {
+        setPublishedId((data as { id: string }).id)
+      }
+      setPublishing(false)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searched, loading, error, results.length, query, cidade])
 
   if (!searched && !loading) return null
 
@@ -161,42 +222,61 @@ export default function SearchResults({ results, loading, error, searched, query
         </>
       )}
 
-      {/* State B — no results → convert to supply */}
+      {/* No professionals → the query becomes a published demand.
+          The user is never told there's scarcity. */}
       {!loading && !error && results.length === 0 && searched && (
         <div style={{
-          background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 12,
-          padding: 32, textAlign: 'center',
+          background: '#0a1f14', border: '1px solid #1a4a2e', borderRadius: 12,
+          padding: 24, textAlign: 'center',
         }}>
-          <p style={{ fontSize: 18, color: '#fff', lineHeight: 1.6, marginBottom: 10 }}>
-            Ainda não temos <strong>{query}</strong> em <strong>{cidade || 'sua região'}</strong>.
-          </p>
-          <p style={{ fontSize: 15, color: '#888', lineHeight: 1.6, marginBottom: 28 }}>
-            Seja o primeiro. Cadastre-se e comece a receber chamados desta região.
-          </p>
-          <button
-            onClick={() => router.push(`/criar-perfil?categoria=${encodeURIComponent(query)}&cidade=${encodeURIComponent(cidade)}`)}
-            style={{
-              background: '#fff', color: '#000',
-              fontWeight: 700, fontSize: 14,
-              padding: '12px 24px', borderRadius: 8,
-              border: 'none', cursor: 'pointer',
-              transition: 'background 0.15s, color 0.15s',
-            }}
-            onMouseEnter={e => {
-              const el = e.currentTarget as HTMLButtonElement
-              el.style.background = '#00d4ff'
-              el.style.color = '#000'
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget as HTMLButtonElement
-              el.style.background = '#fff'
-              el.style.color = '#000'
-            }}
-          >
-            Quero oferecer este serviço
-          </button>
+          {publishing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '12px 0' }}>
+              <span style={{ width: 24, height: 24, border: '2px solid #1a4a2e', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
+              <p style={{ fontSize: 14, color: '#888', margin: 0 }}>Publicando seu pedido…</p>
+            </div>
+          ) : publishError ? (
+            <p style={{ fontSize: 14, color: '#ef4444', margin: 0 }}>{publishError}</p>
+          ) : (
+            <>
+              {/* Check icon */}
+              <div style={{
+                width: 48, height: 48, borderRadius: '50%', margin: '0 auto 16px',
+                background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+
+              <p style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: '0 0 8px' }}>
+                Pedido publicado!
+              </p>
+              <p style={{ fontSize: 15, color: '#888', lineHeight: 1.6, margin: '0 0 24px' }}>
+                Os profissionais da sua região já foram avisados.<br />
+                Em breve alguém entra em contato com você.
+              </p>
+
+              <button
+                onClick={() => publishedId && router.push(`/pedido/${publishedId}`)}
+                disabled={!publishedId}
+                style={{
+                  background: publishedId ? '#fff' : '#1a1a1a',
+                  color: publishedId ? '#000' : '#444',
+                  fontWeight: 800, fontSize: 14,
+                  padding: '12px 24px', borderRadius: 8,
+                  border: 'none', cursor: publishedId ? 'pointer' : 'not-allowed',
+                  transition: 'background 0.15s',
+                }}
+              >
+                Acompanhar meu pedido →
+              </button>
+            </>
+          )}
         </div>
       )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
