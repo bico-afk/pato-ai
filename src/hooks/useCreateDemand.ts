@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getAnonToken } from '@/lib/anonymous'
 
@@ -23,7 +23,8 @@ export interface CreateDemandResult {
 export function useCreateDemand() {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
 
   const createDemand = useCallback(async (input: CreateDemandInput): Promise<CreateDemandResult> => {
     setLoading(true)
@@ -90,7 +91,7 @@ export function useCreateDemand() {
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return { createDemand, loading, error }
 }

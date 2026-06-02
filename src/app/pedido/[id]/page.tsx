@@ -56,7 +56,8 @@ const initials = (n: string) =>
 export default function PedidoPage() {
   const { id }   = useParams<{ id: string }>()
   const router   = useRouter()
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
 
   const [demand,        setDemand]        = useState<Demand | null>(null)
   const [applications,  setApplications]  = useState<Application[]>([])
@@ -105,7 +106,7 @@ export default function PedidoPage() {
           .from('applications')
           .select(`
             id, professional_id, message, status, created_at,
-            users!inner ( username, full_name, avatar_url ),
+            users ( username, full_name, avatar_url ),
             professional_profiles ( headline, avg_rating, total_jobs_completed )
           `)
           .eq('demand_id', id)
@@ -160,7 +161,8 @@ export default function PedidoPage() {
 
     load()
     return () => { if (channelRef.current) supabase.removeChannel(channelRef.current) }
-  }, [id, supabase, router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, router])
 
   /* ── Apply ── */
   async function handleApply() {
@@ -239,13 +241,9 @@ export default function PedidoPage() {
   return (
     <div style={{ minHeight: '100dvh', background: '#000', fontFamily: "'Inter', system-ui, sans-serif", color: '#fff' }}>
 
-      {/* Header */}
-      <header style={{ padding: '20px 24px', borderBottom: '1px solid #111', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <Link href="/" style={{ fontSize: 18, fontWeight: 800, color: '#fff', textDecoration: 'none', letterSpacing: '-0.5px' }}>BIKCO</Link>
-        <Link href="/feed" style={{ fontSize: 13, color: '#555', textDecoration: 'none' }}>← Feed</Link>
-      </header>
+      <main style={{ maxWidth: 680, margin: '0 auto', padding: '32px 20px 80px' }}>
+        <Link href="/feed" style={{ fontSize: 13, color: '#555', textDecoration: 'none', display: 'inline-block', marginBottom: 24 }}>← Feed</Link>
 
-      <main style={{ maxWidth: 680, margin: '0 auto', padding: '40px 20px 80px' }}>
 
         {/* Status + time */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>

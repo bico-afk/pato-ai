@@ -83,7 +83,8 @@ export default function ChatPage() {
   const router   = useRouter()
   const params   = useParams()
   const chatId   = Array.isArray(params.id) ? params.id[0] : (params.id as string)
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
 
   const [myUserId,   setMyUserId]   = useState<string | null>(null)
   const [chat,       setChat]       = useState<ChatInfo | null>(null)
@@ -180,7 +181,8 @@ export default function ChatPage() {
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current)
     }
-  }, [chatId, router, supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, router])
 
   /* ── Close / Encerrar bico ── */
   const closeBico = useCallback(async () => {
@@ -197,7 +199,8 @@ export default function ChatPage() {
     } finally {
       setClosing(false)
     }
-  }, [chat, closing, supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat, closing])
 
   const send = useCallback(async () => {
     const text = newMsg.trim()
@@ -227,7 +230,8 @@ export default function ChatPage() {
       setMessages(prev => prev.map(m => m.id === optimistic.id ? (inserted as unknown as Message) : m))
     }
     setSending(false)
-  }, [newMsg, sending, chat, myUserId, supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newMsg, sending, chat, myUserId])
 
   /* ── Loading / Error ── */
   if (status === 'loading') return (

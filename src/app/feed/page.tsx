@@ -136,21 +136,6 @@ export default function FeedPage() {
   return (
     <div style={{ minHeight: '100dvh', background: '#000', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* Header */}
-      <header style={{ padding: '20px 24px', borderBottom: '1px solid #111', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/" style={{ fontSize: 18, fontWeight: 800, color: '#fff', textDecoration: 'none', letterSpacing: '-0.5px' }}>
-          BIKCO
-        </Link>
-        <Link href="/nova-demanda" style={{
-          height: 36, padding: '0 16px', borderRadius: 8,
-          background: '#fff', color: '#000',
-          fontSize: 13, fontWeight: 700, textDecoration: 'none',
-          display: 'flex', alignItems: 'center',
-        }}>
-          + Publicar pedido
-        </Link>
-      </header>
-
       <main style={{ maxWidth: 680, margin: '0 auto', padding: '32px 20px 80px' }}>
 
         {/* Search */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 
@@ -34,7 +34,8 @@ export function useAuth() {
     isAuthenticated: false,
   })
 
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
 
   async function fetchProfile(userId: string): Promise<UserProfile | null> {
     const { data, error } = await supabase
@@ -88,21 +89,21 @@ export function useAuth() {
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     })
     if (error) throw error
-  }, [supabase])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const signInWithPhone = useCallback(async (phone: string) => {
     const { error } = await supabase.auth.signInWithOtp({ phone })
     if (error) throw error
-  }, [supabase])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const verifyOtp = useCallback(async (phone: string, token: string) => {
     const { error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' })
     if (error) throw error
-  }, [supabase])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
-  }, [supabase])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateProfile = useCallback(async (data: Partial<UserProfile>) => {
     if (!state.user) throw new Error('Não autenticado')
@@ -114,7 +115,7 @@ export function useAuth() {
     // Refresh profile in state
     const profile = await fetchProfile(state.user.id)
     setState(prev => ({ ...prev, profile }))
-  }, [state.user, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return { ...state, signInWithEmail, signInWithPhone, verifyOtp, signOut, updateProfile }
 }
