@@ -90,7 +90,7 @@ export default function Home() {
           marginBottom: 32,
           maxWidth: 480,
         }}>
-          Encontre profissionais de confiança perto de você — eletricistas, pintores, faxineiras, doceiras e muito mais.
+          Descreva o que você precisa e publique. Profissionais de confiança da sua região entram em contato com você.
         </p>
 
         {/* Search bar */}
