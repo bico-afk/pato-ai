@@ -4,6 +4,13 @@
 -- ═══════════════════════════════════════════════════════════
 
 -- ───────────────────────────────────────────────────────────
+--  CORRIGE: usuário anônimo só conseguia publicar 1 pedido.
+--  A constraint UNIQUE em anonymous_token impedia o 2º pedido
+--  do mesmo navegador. Um anônimo pode publicar vários pedidos.
+-- ───────────────────────────────────────────────────────────
+alter table demands drop constraint if exists demands_anonymous_token_key;
+
+-- ───────────────────────────────────────────────────────────
 --  LEITURA PÚBLICA (corrige "feed vazio quando logado")
 --  O feed é público: anon E authenticated precisam ler.
 --  Causa do bug: policy de SELECT existia só p/ role 'anon',
