@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createPublicClient } from '@/lib/supabase/public'
 
 export interface SearchResult {
   id:           string
@@ -45,7 +45,7 @@ export function useSearch(): UseSearchReturn {
   const [error,    setError]    = useState<string | null>(null)
   const [searched, setSearched] = useState(false)
 
-  const supabaseRef = useRef(createClient())
+  const supabaseRef = useRef(createPublicClient())
   const supabase    = supabaseRef.current
 
   const search = useCallback(async (query: string, cidade: string) => {

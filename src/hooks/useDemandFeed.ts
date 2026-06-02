@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createPublicClient } from '@/lib/supabase/public'
 import { anonUsername } from '@/lib/anonymous'
 import type { RealtimeChannel, RealtimePostgresChangesPayload, REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js'
 
@@ -49,7 +49,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   const retryRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCount   = useRef(0)
   // Stable ref — avoids re-creating supabase on every render (would cause infinite useEffect loop)
-  const supabaseRef  = useRef(createClient())
+  const supabaseRef  = useRef(createPublicClient())
   const supabase     = supabaseRef.current
 
   function normalize(row: Record<string, unknown>, resolvedName?: string): DemandFeedItem {

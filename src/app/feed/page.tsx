@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { createPublicClient } from '@/lib/supabase/public'
 import { useDemandFeed } from '@/hooks/useDemandFeed'
 import DemandCard from '@/components/demand/DemandCard'
 import type { DemandFeedItem } from '@/hooks/useDemandFeed'
@@ -31,7 +31,7 @@ function useDebounce<T>(value: T, ms: number): T {
 }
 
 export default function FeedPage() {
-  const supabaseRef = useRef(createClient())
+  const supabaseRef = useRef(createPublicClient())
   const supabase    = supabaseRef.current
 
   const [filter,     setFilter]     = useState<FilterKey>('todos')
