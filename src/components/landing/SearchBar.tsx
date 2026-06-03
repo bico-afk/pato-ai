@@ -289,7 +289,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
       {/* ── Secondary links ── */}
       <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-        <a href="/feed" style={{ fontSize: 13, color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+        <a href="/prestador" style={{ fontSize: 13, color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
           onMouseEnter={e => (e.currentTarget.style.color = '#888')} onMouseLeave={e => (e.currentTarget.style.color = '#555')}>
           Quero oferecer um serviço →
         </a>

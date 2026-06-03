@@ -60,6 +60,25 @@ create policy "profiles_select_public" on professional_profiles for select
   to anon, authenticated
   using (true);
 
+-- professional_profiles: o dono pode criar/editar o próprio perfil (chat de onboarding)
+drop policy if exists "profiles_insert_own" on professional_profiles;
+create policy "profiles_insert_own" on professional_profiles for insert
+  to authenticated
+  with check (auth.uid() = (select auth_id from users where id = user_id));
+
+drop policy if exists "profiles_update_own" on professional_profiles;
+create policy "profiles_update_own" on professional_profiles for update
+  to authenticated
+  using (auth.uid() = (select auth_id from users where id = user_id))
+  with check (auth.uid() = (select auth_id from users where id = user_id));
+
+-- users: o próprio usuário pode atualizar seu cadastro (nome, bio)
+drop policy if exists "users_update_own" on users;
+create policy "users_update_own" on users for update
+  to authenticated
+  using (auth.uid() = auth_id)
+  with check (auth.uid() = auth_id);
+
 -- ───────────────────────────────────────────────────────────
 --  REALTIME — habilita o feed "ao vivo"
 -- ───────────────────────────────────────────────────────────
