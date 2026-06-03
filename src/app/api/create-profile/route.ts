@@ -13,6 +13,7 @@ interface ProfileBody {
   skills?:        string[]
   cidade?:        string
   estado?:        string
+  regiao?:        string
   bio?:           string
   whatsapp?:      string
   cpf?:           string
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() }
   catch { return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 }) }
 
-  const { nome, headline, skills, cidade, estado, bio, whatsapp,
+  const { nome, headline, skills, cidade, estado, regiao, bio, whatsapp,
           cpf, rg, avatarUrl, portfolioUrls, audioUrl } = body
   if (!nome || !skills?.length || !cidade) {
     return NextResponse.json({ ok: false, error: 'dados_incompletos' }, { status: 400 })
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
       location_city:    cidade,
       location_state:   estado ?? '',
       location_country: 'BR',
+      ...(regiao ? { location_text: regiao } : {}),
       is_available:     true,
       ...(portfolio.length ? { portfolio_urls: portfolio } : {}),
       ...(audioUrl ? { audio_url: audioUrl } : {}),

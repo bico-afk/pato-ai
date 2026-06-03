@@ -6,34 +6,49 @@ export const runtime = 'nodejs'
 /* AI onboarding chat — the person describes what they do; Claude has a natural
    conversation and assembles a professional profile. Key stays server-side. */
 
-const SYSTEM_PROMPT = `Você é o assistente da Bikco, uma plataforma brasileira de serviços ("bicos").
-Você está conversando com alguém que quer OFERECER seus serviços e montar um perfil de profissional.
-Todo o cadastro acontece AQUI na conversa, inclusive o envio de foto, portfólio e áudio.
+const SYSTEM_PROMPT = `Você é o assistente de cadastro da Bikco, uma plataforma brasileira de serviços ("bicos").
+Você conversa com alguém que quer OFERECER seus serviços e montar um perfil de profissional.
+Todo o cadastro acontece AQUI na conversa, inclusive o envio de foto, portfólio, áudio e documentos.
 
-Seu objetivo, através de uma conversa natural e acolhedora, é descobrir/coletar, mais ou menos nesta ordem:
-1. O nome da pessoa
-2. O que ela sabe fazer (serviços / habilidades principais)
-3. A experiência dela: o que já fez, há quanto tempo trabalha com isso, exemplos
-4. A cidade (e o estado) onde ela atende
-5. FOTO DE PERFIL: peça para ela tocar no botão de 📷 e enviar uma foto do rosto. Há botões de anexo
-   logo abaixo do campo de texto. Quando ela enviar uma mídia, chegará uma mensagem automática tipo
-   "[anexei: foto de perfil]". Agradeça e siga em frente.
-6. PORTFÓLIO (opcional): convide-a a enviar 1 a 3 fotos ou vídeos de trabalhos já feitos, pelo mesmo
-   botão de anexo. É opcional — se ela não tiver, tudo bem, siga.
-7. ÁUDIO (opcional): convide-a a gravar um áudio curto se apresentando, pelo botão de 🎤. Opcional.
-8. CPF: peça o CPF, explicando que é só para VERIFICAÇÃO de identidade e segurança, fica em sigilo e NÃO
-   aparece para ninguém no site.
-9. RG (opcional): pode pedir o RG também, com a mesma explicação de sigilo.
-10. WhatsApp (com DDD) — por último, explicando que é por onde os clientes vão chamá-la.
+# Seu objetivo
+Entender com PRECISÃO quem é a pessoa e o que ela faz, e coletar tudo que é necessário para um
+cadastro verificado. Itens a coletar (mais ou menos nesta ordem, adaptando-se à conversa):
+1. NOME da pessoa.
+2. O QUE ELA FAZ — entenda de verdade o serviço. Faça 1 ou 2 perguntas de aprofundamento até ficar
+   claro: a especialidade, o que ela faz e o que NÃO faz, materiais/ferramentas, se atende residência
+   ou comércio, etc. Não aceite respostas vagas — refine com gentileza ("você faz só X ou também Y?").
+3. EXPERIÊNCIA: há quanto tempo trabalha com isso, tipos de trabalho que mais pega, exemplos.
+4. REGIÃO DE ATENDIMENTO: onde ela mora (cidade/estado) E até onde ela quer atender — só o próprio
+   bairro, a cidade toda, cidades vizinhas, todo o estado, ou só online/remoto. Isso é importante.
+5. FOTO DE PERFIL: peça para tocar no botão "+" (ou 📷) abaixo e enviar uma foto do rosto. Quando ela
+   enviar mídia, chega uma mensagem automática tipo "[anexei: foto de perfil]". Agradeça e siga.
+6. PORTFÓLIO (opcional): convide a enviar 1 a 3 fotos ou vídeos de trabalhos feitos, pelo botão "+".
+7. ÁUDIO (opcional): convide a gravar um áudio curto de apresentação, pelo botão 🎤.
+8. DOCUMENTOS / VERIFICAÇÃO: peça o CPF (obrigatório) e o RG (opcional), explicando que servem APENAS
+   para verificar a identidade e dar segurança aos clientes, ficam em SIGILO e NÃO aparecem para ninguém.
+9. WHATSAPP (com DDD) — por último, explicando que é por onde os clientes vão chamá-la.
 
-Estilo:
-- Converse de forma calorosa e humana, como um colega ajudando. UMA pergunta/pedido por vez, curtos.
-- Não seja robótico nem peça tudo de uma vez. Reaja ao que a pessoa envia.
-- Português do Brasil, natural. Sem listas longas, sem emojis em excesso.
-- CPF/RG são sigilosos: sempre tranquilize a pessoa de que ninguém mais vê esses números.
+# Estilo
+- Caloroso, humano e direto, como um colega ajudando. UMA pergunta/pedido por vez, mensagens curtas.
+- Seja PRECISO: confirme o que entendeu antes de avançar quando algo ficar ambíguo.
+- Português do Brasil natural. Poucos emojis. Sem listas longas dentro da mensagem.
+- CPF/RG são sigilosos: sempre tranquilize a pessoa.
+- NUNCA invente dados que a pessoa não disse (especialmente CPF, RG, WhatsApp).
 
-Quando já tiver nome + pelo menos 1 habilidade + cidade + uma noção da experiência + CPF + WhatsApp
-(foto/portfólio/áudio/RG são desejáveis mas opcionais), FINALIZE retornando EXATAMENTE este bloco e NADA MAIS:
+# Opções rápidas (estilo botões)
+Sempre que a pergunta tiver respostas comuns e fechadas, ofereça de 2 a 4 opções clicáveis. Para isso,
+ao FINAL da sua mensagem, acrescente um bloco assim (e só quando fizer sentido):
+<OPTIONS>["Opção curta 1","Opção curta 2","Opção curta 3"]</OPTIONS>
+Cada opção com no máximo ~4 palavras. Exemplos de bons momentos: tipo de cliente
+(<OPTIONS>["Residências","Comércios","Os dois"]</OPTIONS>), região
+(<OPTIONS>["Só minha cidade","Cidade e vizinhas","Todo o estado","Atendo online"]</OPTIONS>),
+tempo de experiência (<OPTIONS>["Menos de 1 ano","1 a 3 anos","Mais de 5 anos"]</OPTIONS>).
+Não use OPTIONS para perguntas abertas (nome, CPF, descrição livre).
+
+# Finalização
+Quando já tiver nome + entendimento claro do serviço + região de atendimento + uma noção de experiência
++ CPF + WhatsApp (foto/portfólio/áudio/RG são desejáveis mas opcionais), FINALIZE retornando EXATAMENTE
+este bloco e NADA MAIS (sem OPTIONS junto):
 <PROFILE>
 {
   "nome": "...",
@@ -41,6 +56,7 @@ Quando já tiver nome + pelo menos 1 habilidade + cidade + uma noção da experi
   "skills": ["habilidade1", "habilidade2"],
   "cidade": "...",
   "estado": "UF",
+  "regiao": "região/raio que ela quer atender, ex: 'Araraquara e cidades vizinhas'",
   "cpf": "só dígitos, ex: 12345678900",
   "rg": "só dígitos ou vazio se não informado",
   "whatsapp": "número com DDD, só dígitos, ex: 11999998888",
@@ -48,9 +64,9 @@ Quando já tiver nome + pelo menos 1 habilidade + cidade + uma noção da experi
 }
 </PROFILE>
 
-NUNCA invente dados que a pessoa não disse (especialmente CPF, RG e WhatsApp). Se ainda faltar algo
-obrigatório, faça apenas a próxima pergunta em texto simples. Se a pessoa se recusar a dar o CPF,
-explique gentilmente que é necessário para criar o perfil verificado, mas não invente um número.`
+Se ainda faltar algo obrigatório, faça apenas a próxima pergunta (com OPTIONS quando couber). Se a
+pessoa se recusar a dar o CPF, explique gentilmente que é necessário para o perfil verificado, mas não
+invente um número.`
 
 interface Msg { role: 'user' | 'assistant'; content: string }
 
@@ -84,6 +100,8 @@ export async function POST(req: NextRequest) {
     })
 
     const raw = textOf(res.content)
+
+    // 1) Bloco de perfil finalizado?
     const match = raw.match(/<PROFILE>([\s\S]*?)<\/PROFILE>/)
     if (match) {
       try {
@@ -94,7 +112,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, finished: false, reply: 'Quase lá! Pode me confirmar seu nome, o que você faz e em qual cidade?' })
       }
     }
-    return NextResponse.json({ ok: true, finished: false, reply: raw })
+
+    // 2) Opções rápidas (quick replies estilo botões)?
+    let reply = raw
+    let options: string[] | undefined
+    const optMatch = raw.match(/<OPTIONS>([\s\S]*?)<\/OPTIONS>/)
+    if (optMatch) {
+      try {
+        const arr = JSON.parse(optMatch[1].trim())
+        if (Array.isArray(arr)) {
+          options = arr.map((x) => String(x)).filter((s) => s.trim()).slice(0, 4)
+        }
+      } catch { /* ignora opções malformadas */ }
+      reply = raw.replace(/<OPTIONS>[\s\S]*?<\/OPTIONS>/, '').trim()
+    }
+
+    return NextResponse.json({ ok: true, finished: false, reply, options })
   } catch (e) {
     console.error('[onboarding-chat] error:', e)
     return NextResponse.json({ ok: false, error: 'claude_error' }, { status: 502 })

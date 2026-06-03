@@ -12,7 +12,7 @@ interface MsgMedia { kind: 'avatar' | 'portfolio' | 'audio'; url: string; type: 
 interface Msg { role: 'user' | 'assistant'; content: string; media?: MsgMedia }
 interface ProfileData {
   nome: string; headline: string; skills: string[]; cidade: string; estado: string
-  bio: string; whatsapp?: string; cpf?: string; rg?: string
+  bio: string; whatsapp?: string; cpf?: string; rg?: string; regiao?: string
 }
 
 const GREETING = 'Oi! 👋 Que bom te ver por aqui. Me conta: o que você sabe fazer? Pode falar do seu jeito — qual serviço você oferece?'
@@ -34,6 +34,7 @@ export default function PrestadorPage() {
   const [messages, setMessages] = useState<Msg[]>([{ role: 'assistant', content: GREETING }])
   const [input,    setInput]    = useState('')
   const [thinking, setThinking] = useState(false)
+  const [options,  setOptions]  = useState<string[]>([])
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
   const [showAuth, setShowAuth] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -61,7 +62,7 @@ export default function PrestadorPage() {
 
   // ── Envia uma lista de mensagens para a IA e anexa a resposta ──
   async function sendMessages(updated: Msg[]) {
-    setMessages(updated); setThinking(true)
+    setMessages(updated); setThinking(true); setOptions([])
     try {
       const res = await fetch('/api/onboarding-chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -70,7 +71,8 @@ export default function PrestadorPage() {
       const json = await res.json()
       if (!json.ok) throw new Error(json.error ?? 'erro')
       if (json.reply) setMessages(prev => [...prev, { role: 'assistant', content: json.reply }])
-      if (json.finished && json.profile) setProfileData(json.profile as ProfileData)
+      if (json.finished && json.profile) { setProfileData(json.profile as ProfileData); setOptions([]) }
+      else setOptions(Array.isArray(json.options) ? json.options as string[] : [])
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Tive um probleminha agora. Pode repetir sua última mensagem?' }])
     } finally {
@@ -78,12 +80,19 @@ export default function PrestadorPage() {
     }
   }
 
+  // Envia um texto qualquer (digitado ou clicado numa opção)
+  async function sendText(text: string) {
+    const t = text.trim()
+    if (!t || thinking || profileData || uploading) return
+    await sendMessages([...messages, { role: 'user', content: t }])
+  }
+
   async function send() {
     const text = input.trim()
     if (!text || thinking || profileData || uploading) return
     setInput('')
     if (taRef.current) taRef.current.style.height = 'auto'
-    await sendMessages([...messages, { role: 'user', content: text }])
+    await sendText(text)
   }
 
   // ── Upload genérico para o bucket público ──
@@ -269,6 +278,20 @@ export default function PrestadorPage() {
           </div>
         )}
 
+        {/* Opções rápidas (quick replies estilo Claude) */}
+        {options.length > 0 && !thinking && !profileData && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, justifyContent: 'flex-end' }}>
+            {options.map((opt, i) => (
+              <button key={i} type="button" onClick={() => sendText(opt)} disabled={busy}
+                style={{ background: 'rgba(0,212,255,0.07)', border: '1px solid rgba(0,212,255,0.35)', borderRadius: 99, padding: '9px 16px', color: '#00d4ff', fontSize: 13.5, fontWeight: 600, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'background 0.15s' }}
+                onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'rgba(0,212,255,0.16)' }}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,212,255,0.07)')}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Profile ready card */}
         {profileData && (
           <div style={{ background: '#0a1f14', border: '1px solid #1a4a2e', borderRadius: 14, padding: '20px', marginTop: 8 }}>
@@ -291,7 +314,10 @@ export default function PrestadorPage() {
               ))}
             </div>
             <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: '0 0 6px' }}>{profileData.bio}</p>
-            <p style={{ fontSize: 12, color: '#555', margin: '0 0 10px' }}>📍 {profileData.cidade}{profileData.estado ? `, ${profileData.estado}` : ''}</p>
+            <p style={{ fontSize: 12, color: '#555', margin: '0 0 4px' }}>📍 {profileData.cidade}{profileData.estado ? `, ${profileData.estado}` : ''}</p>
+            {profileData.regiao && (
+              <p style={{ fontSize: 12, color: '#555', margin: '0 0 10px' }}>🛣️ Atende: {profileData.regiao}</p>
+            )}
 
             {/* Portfólio */}
             {portfolioUrls.length > 0 && (
