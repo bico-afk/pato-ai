@@ -1,11 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import SearchBar from '@/components/landing/SearchBar'
-import SearchResults from '@/components/landing/SearchResults'
+import PublishBar from '@/components/landing/PublishBar'
 import DemandFeed from '@/components/demand/DemandFeed'
-import { useSearch } from '@/hooks/useSearch'
-import type { LocationData } from '@/lib/geo'
 
 /* ── SVG icons for Mission section ─────────────────────────── */
 function IconSearch() {
@@ -45,18 +41,6 @@ function IconWhatsApp() {
 
 /* ── Page ───────────────────────────────────────────────────── */
 export default function Home() {
-  const { results, loading, error, searched, search } = useSearch()
-  const [lastQuery,    setLastQuery]    = useState('')
-  const [lastLocation, setLastLocation] = useState<LocationData | null>(null)
-  const [lastMedia,    setLastMedia]    = useState<string[]>([])
-
-  function handleSearch(query: string, location: LocationData | null, mediaUrls: string[]) {
-    setLastQuery(query)
-    setLastLocation(location)
-    setLastMedia(mediaUrls)
-    search(query, location?.city ?? '')
-  }
-
   return (
     <main style={{ background: '#000', minHeight: '100dvh', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
@@ -96,19 +80,8 @@ export default function Home() {
           Descreva o que você precisa e publique. Profissionais de confiança da sua região entram em contato com você.
         </p>
 
-        {/* Search bar */}
-        <SearchBar onSearch={handleSearch} loading={loading} />
-
-        {/* Search results (inline, below bar) */}
-        <SearchResults
-          results={results}
-          loading={loading}
-          error={error}
-          searched={searched}
-          query={lastQuery}
-          location={lastLocation}
-          mediaUrls={lastMedia}
-        />
+        {/* Publish bar — address autocomplete, media, AI, publish */}
+        <PublishBar />
       </section>
 
       {/* ── LIVE FEED ───────────────────────────────────────── */}
