@@ -47,6 +47,8 @@ export default function LiveGlobe() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     mount.appendChild(renderer.domElement)
     renderer.domElement.style.display = 'block'
+    renderer.domElement.style.width = '100%'   // CSS fills container…
+    renderer.domElement.style.height = '100%'  // …enquanto o buffer segue o devicePixelRatio
     renderer.domElement.style.cursor = 'grab'
     renderer.domElement.style.touchAction = 'pan-y'
 
