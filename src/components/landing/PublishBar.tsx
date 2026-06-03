@@ -12,11 +12,13 @@ import type { LocationData } from '@/lib/geo'
 export default function PublishBar() {
   const { results, loading, error, searched, search } = useSearch()
   const [lastQuery,    setLastQuery]    = useState('')
+  const [lastTitle,    setLastTitle]    = useState('')
   const [lastLocation, setLastLocation] = useState<LocationData | null>(null)
   const [lastMedia,    setLastMedia]    = useState<string[]>([])
 
-  function handleSearch(query: string, location: LocationData | null, mediaUrls: string[]) {
+  function handleSearch(query: string, location: LocationData | null, mediaUrls: string[], title: string) {
     setLastQuery(query)
+    setLastTitle(title)
     setLastLocation(location)
     setLastMedia(mediaUrls)
     search(query, location?.city ?? '')
@@ -31,6 +33,7 @@ export default function PublishBar() {
         error={error}
         searched={searched}
         query={lastQuery}
+        title={lastTitle}
         location={lastLocation}
         mediaUrls={lastMedia}
       />

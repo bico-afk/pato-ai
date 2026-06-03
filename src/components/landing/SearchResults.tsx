@@ -112,11 +112,12 @@ interface Props {
   error:     string | null
   searched:  boolean
   query:     string
+  title:     string
   location:  LocationData | null
   mediaUrls: string[]
 }
 
-export default function SearchResults({ results, loading, error, searched, query, location, mediaUrls }: Props) {
+export default function SearchResults({ results, loading, error, searched, query, title, location, mediaUrls }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { profile } = useAuth() // logged-in user (if any) → attribute the demand to them
@@ -163,7 +164,7 @@ export default function SearchResults({ results, loading, error, searched, query
     setPublishError(null)
     ;(async () => {
       const base = {
-        title:            query.slice(0, 120),
+        title:            (title?.trim() || query.slice(0, 80)).slice(0, 120),
         description:      query,
         location_city:    location?.city    ?? '',
         location_state:   location?.state   ?? '',

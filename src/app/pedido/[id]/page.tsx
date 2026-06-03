@@ -15,6 +15,7 @@ interface Demand {
   id:               string
   user_id:          string | null
   anonymous_token:  string | null
+  title:            string | null
   description:      string
   location_city:    string | null
   location_state:   string | null
@@ -384,9 +385,16 @@ export default function PedidoPage() {
           <span style={{ fontSize: 12, color: '#444' }}>{timeAgo(demand.created_at)}</span>
         </div>
 
+        {/* Title */}
+        {demand.title && (
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#fff', lineHeight: 1.25, letterSpacing: '-0.4px', margin: '0 0 14px' }}>
+            {demand.title}
+          </h1>
+        )}
+
         {/* Description */}
         <div style={{ background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 14, padding: '24px 28px', marginBottom: 16 }}>
-          <p style={{ fontSize: 16, color: '#fff', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
+          <p style={{ fontSize: 16, color: '#ddd', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
             {demand.description}
           </p>
         </div>

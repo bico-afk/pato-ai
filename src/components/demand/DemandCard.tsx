@@ -75,15 +75,27 @@ export default function DemandCard({ item }: Props) {
         <span style={{ fontSize: 12, color: '#555', flexShrink: 0 }}>{time}</span>
       </div>
 
-      {/* Description + optional thumbnail */}
+      {/* Title + description + optional thumbnail */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <p style={{
-          fontSize: 15, color: '#fff', lineHeight: 1.55, margin: 0, flex: 1,
-          overflow: 'hidden', display: '-webkit-box',
-          WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-        }}>
-          {item.description}
-        </p>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {item.title && (
+            <p style={{
+              fontSize: 16, fontWeight: 800, color: '#fff', lineHeight: 1.35, margin: '0 0 5px',
+              letterSpacing: '-0.2px',
+              overflow: 'hidden', display: '-webkit-box',
+              WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+            }}>
+              {item.title}
+            </p>
+          )}
+          <p style={{
+            fontSize: 14, color: item.title ? '#9ca3af' : '#fff', lineHeight: 1.55, margin: 0,
+            overflow: 'hidden', display: '-webkit-box',
+            WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+          }}>
+            {item.description}
+          </p>
+        </div>
         {thumb && (
           // eslint-disable-next-line @next/next/no-img-element
           <img

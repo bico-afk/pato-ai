@@ -8,6 +8,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload, REALTIME_SUBSCRIB
 export interface DemandFeedItem {
   id:              string
   username:        string
+  title:           string
   description:     string
   location_city:   string
   location_country:string
@@ -58,6 +59,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     return {
       id:               row.id as string,
       username,
+      title:            (row.title as string | null) ?? '',
       description:      row.description as string,
       location_city:    (row.location_city as string | null) ?? '',
       location_country: (row.location_country as string | null) ?? 'BR',

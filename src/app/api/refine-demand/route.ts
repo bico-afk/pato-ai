@@ -18,7 +18,13 @@ Como melhorar:
   realmente faria diferença no orçamento — não encha o texto de X.
 - 2 a 4 frases. Natural e direto, em português do Brasil.
 - Sem saudações, sem aspas, sem listas com marcadores, sem emojis.
-- Responda APENAS com o pedido reescrito — nada além disso.`
+
+Formato OBRIGATÓRIO da resposta (exatamente assim):
+TÍTULO: <um título curto e chamativo, no máximo 7 palavras, que resume o pedido — ex.: "Diarista para faxina completa", "Professor particular de inglês">
+<linha em branco>
+<a descrição reescrita, 2 a 4 frases>
+
+Não escreva mais nada além disso.`
 
 const MIN_CHARS = 6
 const MAX_CHARS = 600
@@ -59,11 +65,22 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: input }],
     })
 
-    const refined = textOf(response.content)
-    if (!refined) {
+    const raw = textOf(response.content)
+    if (!raw) {
       return NextResponse.json({ ok: false, error: 'sem_resposta' }, { status: 502 })
     }
-    return NextResponse.json({ ok: true, refined })
+
+    // Separa "TÍTULO: ..." (1ª linha) da descrição.
+    let title = ''
+    let refined = raw
+    const m = raw.match(/^\s*T[ÍI]TULO:\s*(.+?)(?:\n|$)/i)
+    if (m) {
+      title   = m[1].trim().replace(/^["']|["']$/g, '').slice(0, 80)
+      refined = raw.slice(m[0].length).trim()
+    }
+    if (!refined) refined = raw  // fallback se o modelo não separou
+
+    return NextResponse.json({ ok: true, refined, title })
   } catch (e) {
     console.error('[refine-demand] Claude error:', e)
     return NextResponse.json({ ok: false, error: 'claude_error' }, { status: 502 })

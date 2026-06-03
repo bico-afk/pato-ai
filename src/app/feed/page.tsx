@@ -91,7 +91,7 @@ export default function FeedPage() {
     try {
       let query = supabase
         .from('demands')
-        .select('id, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
+        .select('id, title, description, location_city, location_country, candidate_count, created_at, media_urls, anonymous_token, user_id')
         .eq('status', 'open')
         .order('created_at', { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1)
@@ -120,6 +120,7 @@ export default function FeedPage() {
           return {
             id:               r.id as string,
             username:         name ? `@${name}` : anonTok ? anonUsername(anonTok) : '@usuário',
+            title:            (r.title as string | null) ?? '',
             description:      r.description as string,
             location_city:    (r.location_city as string | null) ?? '',
             location_country: (r.location_country as string | null) ?? 'BR',

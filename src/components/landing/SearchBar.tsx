@@ -6,8 +6,17 @@ import { createPublicClient } from '@/lib/supabase/public'
 import type { LocationData } from '@/lib/geo'
 
 interface Props {
-  onSearch: (query: string, location: LocationData | null, mediaUrls: string[]) => void
+  onSearch: (query: string, location: LocationData | null, mediaUrls: string[], title: string) => void
   loading:  boolean
+}
+
+/** Título de fallback quando a IA não gerou um (pega a 1ª frase, capitaliza). */
+function deriveTitle(text: string): string {
+  const firstLine = (text.split('\n')[0] ?? '').trim()
+  const firstSentence = firstLine.split(/(?<=[.!?])\s/)[0] || firstLine
+  let t = firstSentence.slice(0, 70).trim().replace(/[.,;:]+$/, '')
+  if (t) t = t.charAt(0).toUpperCase() + t.slice(1)
+  return t
 }
 
 interface Suggestion { placeId: string; main: string; sub: string }
@@ -134,6 +143,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
   /* ── IA (Claude) — melhora o texto do pedido (automático + editável) ── */
   const [aiLoading,    setAiLoading]    = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState('')
+  const [aiTitle,      setAiTitle]      = useState('')
   const [aiError,      setAiError]      = useState('')
   const suggestionEditedRef = useRef(false)               // true depois que a pessoa edita o texto da IA
   const lastRefinedRef      = useRef('')                  // último 'query' já refinado (evita repetir)
@@ -150,6 +160,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
       const json = await res.json()
       if (!res.ok || !json.ok) throw new Error(json.error ?? 'erro')
       setAiSuggestion(json.refined as string)
+      if (json.title) setAiTitle(json.title as string)
       suggestionEditedRef.current = false
       lastRefinedRef.current = text
     } catch { setAiError('Não consegui melhorar agora. Toque em "Gerar de novo".') }
@@ -188,7 +199,8 @@ export default function SearchBar({ onSearch, loading }: Props) {
     e?.preventDefault()
     if (!finalText) return
     const urls = medias.filter(m => m.url).map(m => m.url as string)
-    onSearch(finalText, location, urls)
+    const title = aiTitle.trim() || deriveTitle(finalText)
+    onSearch(finalText, location, urls, title)
   }
 
   const canSubmit = finalText.length > 0 && !loading && medias.every(m => !m.uploading)
