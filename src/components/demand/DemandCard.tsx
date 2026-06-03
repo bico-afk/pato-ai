@@ -96,42 +96,42 @@ export default function DemandCard({ item }: Props) {
 
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           <PinIcon />
           {item.location_city || 'Brasil'} · {item.location_country}
         </span>
 
-        {item.candidate_count > 0 && (
-          <span style={{
-            fontSize: 12, fontWeight: 600, color: '#fff',
-            background: '#1a1a1a', border: '1px solid #333',
-            borderRadius: 99, padding: '2px 8px', flexShrink: 0,
-          }}>
-            {item.candidate_count} candidato{item.candidate_count !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {item.candidate_count > 0 && (
+            <span style={{
+              fontSize: 12, fontWeight: 600, color: '#fff',
+              background: '#1a1a1a', border: '1px solid #333',
+              borderRadius: 99, padding: '2px 8px',
+            }}>
+              {item.candidate_count} candidato{item.candidate_count !== 1 ? 's' : ''}
+            </span>
+          )}
 
-      {/* "Tenho interesse" — só aparece se o pedido NÃO for meu */}
-      {isOwner ? (
-        <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 10, marginTop: 2 }}>
-          <span style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>📌 Este pedido é seu</span>
+          {/* "Tenho interesse" — botão pequeno no canto, escondido se o pedido for meu */}
+          {isOwner ? (
+            <span style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>📌 Seu pedido</span>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); router.push(`/pedido/${item.id}?interesse=1`) }}
+              style={{
+                height: 30, borderRadius: 99, border: '1px solid rgba(0,212,255,0.4)',
+                background: 'rgba(0,212,255,0.08)', color: '#00d4ff', fontSize: 12.5, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center',
+                gap: 5, padding: '0 12px', whiteSpace: 'nowrap', transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,212,255,0.16)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,212,255,0.08)')}
+            >
+              ✋ Tenho interesse
+            </button>
+          )}
         </div>
-      ) : (
-        <button
-          onClick={(e) => { e.stopPropagation(); router.push(`/pedido/${item.id}?interesse=1`) }}
-          style={{
-            marginTop: 2, height: 42, borderRadius: 9, border: 'none',
-            background: '#00d4ff', color: '#001a20', fontSize: 14, fontWeight: 800,
-            cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', gap: 7, transition: 'filter 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
-          onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
-        >
-          ✋ Tenho interesse
-        </button>
-      )}
+      </div>
     </div>
   )
 }

@@ -154,6 +154,13 @@ create policy "uv_update_own" on user_verification for update to authenticated
 revoke all on public.user_verification from anon;
 
 -- ───────────────────────────────────────────────────────────
+--  PREÇO na candidatura: fixo / por hora / a combinar
+-- ───────────────────────────────────────────────────────────
+alter table applications add column if not exists price_type text
+  check (price_type in ('fixed', 'hourly', 'negotiable'));
+alter table applications add column if not exists price_amount numeric(12,2);
+
+-- ───────────────────────────────────────────────────────────
 --  REALTIME — habilita o feed "ao vivo" (idempotente, não dá erro se já adicionado)
 -- ───────────────────────────────────────────────────────────
 do $$

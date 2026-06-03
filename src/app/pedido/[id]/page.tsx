@@ -25,14 +25,29 @@ interface Demand {
   created_at:       string
 }
 
+type PriceType = 'fixed' | 'hourly' | 'negotiable'
+
 interface Application {
   id:              string
   professional_id: string
   message:         string
   status:          string
   created_at:      string
+  price_type:      PriceType | null
+  price_amount:    number | null
   users: { username: string; full_name: string | null; avatar_url: string | null; bio: string | null; phone: string | null; phone_country_code: string | null } | null
   professional_profiles: { headline: string | null; skills: string[] | null; avg_rating: number | null; total_jobs_completed: number | null; trust_score: number | null } | null
+}
+
+/** Texto amigável do preço de uma candidatura */
+function priceLabel(type: PriceType | null, amount: number | null): string | null {
+  if (!type) return null
+  const v = amount != null
+    ? amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : null
+  if (type === 'negotiable') return 'A combinar'
+  if (type === 'hourly')     return v ? `${v}/hora` : 'Por hora'
+  return v ?? 'Preço fixo'
 }
 
 /* ── Helpers ──────────────────────────────────────────────── */
@@ -92,6 +107,9 @@ export default function PedidoPage() {
   const [applyMsg,      setApplyMsg]      = useState('')
   const [applying,      setApplying]      = useState(false)
   const [applyError,    setApplyError]    = useState('')
+  const [priceType,     setPriceType]     = useState<PriceType>('negotiable')
+  const [priceAmount,   setPriceAmount]   = useState('')
+  const [copied,        setCopied]        = useState(false)
   const [applied,       setApplied]       = useState(false)
   const [accepting,     setAccepting]     = useState<string | null>(null)
   const [hasProfile,    setHasProfile]    = useState(false)
@@ -180,7 +198,7 @@ export default function PedidoPage() {
           const { data: apps } = await withTimeout(supabase
             .from('applications')
             .select(`
-              id, professional_id, message, status, created_at,
+              id, professional_id, message, status, created_at, price_type, price_amount,
               users ( username, full_name, avatar_url, bio, phone, phone_country_code ),
               professional_profiles ( headline, skills, avg_rating, total_jobs_completed, trust_score )
             `)
@@ -233,6 +251,10 @@ export default function PedidoPage() {
     if (!authUserId) { setShowAuthModal(true); return }
     if (isOwner) { setApplyError('Você não pode se candidatar ao seu próprio pedido.'); return }
     if (applyMsg.trim().length < 10) { setApplyError('Mínimo 10 caracteres'); return }
+    const amountNum = priceType === 'negotiable' ? null : parseFloat(priceAmount.replace(',', '.'))
+    if (priceType !== 'negotiable' && (!amountNum || amountNum <= 0)) {
+      setApplyError('Informe o valor ou escolha "A combinar".'); return
+    }
     setApplying(true); setApplyError('')
     try {
       const { data: inserted, error } = await withTimeout(supabase.from('applications').insert({
@@ -240,6 +262,8 @@ export default function PedidoPage() {
         professional_id: authUserId,
         message:         applyMsg.trim(),
         status:          'pending',
+        price_type:      priceType,
+        price_amount:    amountNum,
       }).select(), 10_000) as { data: unknown; error: { code?: string; message?: string; details?: string; hint?: string } | null }
       if (error) {
         console.error('[apply] error:', error.code, error.message, error.details, error.hint)
@@ -288,6 +312,23 @@ export default function PedidoPage() {
   async function handleDecline(appId: string) {
     await supabase.from('applications').update({ status: 'rejected' }).eq('id', appId)
     setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'rejected' } : a))
+  }
+
+  /* ── Compartilhar / Indicar um profissional ── */
+  async function sharePedido() {
+    const url  = `${window.location.origin}/pedido/${id}`
+    const text = demand ? demand.description.slice(0, 80) : 'Pedido na Bikco'
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Bikco', text, url }) } catch { /* cancelado */ }
+    } else {
+      try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* ignore */ }
+    }
+  }
+
+  function referProfessional() {
+    const url = `${window.location.origin}/pedido/${id}`
+    const msg = `Vi esse bico na Bikco e lembrei de você 👀\n\n"${demand?.description.slice(0, 120) ?? ''}"\n\nSe tiver interesse, é só se candidatar: ${url}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
   }
 
   /* ── Encerrar pedido (dono) — some do feed (status != open) ── */
@@ -352,6 +393,25 @@ export default function PedidoPage() {
           </p>
         )}
 
+        {/* Meta + ações: período, compartilhar, indicar um profissional */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#aaa', background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 99, padding: '7px 14px' }}>
+            🕒 Publicado {timeAgo(demand.created_at)}
+          </span>
+          <button onClick={sharePedido}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: copied ? '#22c55e' : '#ddd', background: '#0f0f0f', border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : '#1e1e1e'}`, borderRadius: 99, padding: '7px 14px', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = '#333')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = copied ? 'rgba(34,197,94,0.4)' : '#1e1e1e')}>
+            {copied ? '✓ Link copiado!' : '🔗 Compartilhar'}
+          </button>
+          <button onClick={referProfessional}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#ddd', background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 99, padding: '7px 14px', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = '#333')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = '#1e1e1e')}>
+            👥 Indicar um profissional
+          </button>
+        </div>
+
         {/* Media */}
         {(demand.media_urls?.length ?? 0) > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
@@ -391,6 +451,42 @@ export default function PedidoPage() {
                   placeholder="Fale sobre sua experiência e disponibilidade..."
                   style={{ width: '100%', resize: 'none', background: '#111', border: '1px solid #333', borderRadius: 8, color: '#fff', fontSize: 14, padding: '12px 14px', outline: 'none', fontFamily: 'inherit', lineHeight: 1.6 }}
                 />
+
+                {/* Tipo de preço */}
+                <p style={{ fontSize: 13, color: '#888', margin: '16px 0 8px', fontWeight: 600 }}>Como você quer cobrar?</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {([
+                    { key: 'fixed',      label: 'Preço fixo'   },
+                    { key: 'hourly',     label: 'Preço por hora' },
+                    { key: 'negotiable', label: 'A combinar'   },
+                  ] as { key: PriceType; label: string }[]).map(opt => {
+                    const active = priceType === opt.key
+                    return (
+                      <button key={opt.key} type="button" onClick={() => setPriceType(opt.key)}
+                        style={{ flex: 1, minWidth: 100, height: 40, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                          border: `1px solid ${active ? '#00d4ff' : '#2a2a2a'}`,
+                          background: active ? 'rgba(0,212,255,0.1)' : '#111',
+                          color: active ? '#00d4ff' : '#888' }}>
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Valor (oculto se "A combinar") */}
+                {priceType !== 'negotiable' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, background: '#111', border: '1px solid #333', borderRadius: 8, padding: '0 14px' }}>
+                    <span style={{ fontSize: 15, color: '#888', fontWeight: 700 }}>R$</span>
+                    <input
+                      type="text" inputMode="decimal" value={priceAmount}
+                      onChange={e => setPriceAmount(e.target.value.replace(/[^\d.,]/g, ''))}
+                      placeholder={priceType === 'hourly' ? 'valor por hora (ex: 50)' : 'valor do serviço (ex: 250)'}
+                      style={{ flex: 1, height: 46, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 14, fontFamily: 'inherit' }}
+                    />
+                    {priceType === 'hourly' && <span style={{ fontSize: 13, color: '#666' }}>/hora</span>}
+                  </div>
+                )}
+
                 {applyError && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>{applyError}</p>}
                 <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                   <button
@@ -533,6 +629,7 @@ function ApplicationCard({
   const wa  = waLink(usr?.phone, usr?.phone_country_code,
     `Olá ${usr?.full_name ?? ''}! Vi sua candidatura no meu pedido "${demandDesc}" na Bikco e gostaria de conversar. 😊`)
   const skills = (pp?.skills ?? []).slice(0, 4)
+  const price  = priceLabel(app.price_type, app.price_amount)
 
   return (
     <div style={{
@@ -578,6 +675,14 @@ function ApplicationCard({
           {isRejected && <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700 }}>Recusado</span>}
         </div>
       </div>
+
+      {/* Preço proposto */}
+      {price && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 12, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '7px 12px' }}>
+          <span style={{ fontSize: 15 }}>💰</span>
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#22c55e' }}>{price}</span>
+        </div>
+      )}
 
       {/* Skills */}
       {skills.length > 0 && (
