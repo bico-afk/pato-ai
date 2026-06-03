@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLanding } from './LandingProvider'
 import { LANGS } from '@/lib/landing/i18n'
+import Flag from './Flag'
 
 /* Seletor de idioma (bandeiras) + alternador de tema claro/escuro. */
 export default function TopControls() {
@@ -28,16 +29,16 @@ export default function TopControls() {
       {/* Idioma */}
       <div ref={ref} style={{ position: 'relative' }}>
         <button style={btn} onClick={() => setOpen(o => !o)} aria-label="Idioma">
-          <span style={{ fontSize: 16 }}>{current.flag}</span>
+          <Flag cc={current.cc} size={20} />
           <span>{current.code.toUpperCase()}</span>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.text2} strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6" /></svg>
         </button>
         {open && (
-          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 200, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 12, padding: 6, minWidth: 178, boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
+          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 200, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 12, padding: 6, minWidth: 188, boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
             {LANGS.map(l => (
               <button key={l.code} onClick={() => { setLang(l.code); setOpen(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', background: l.code === lang ? `${c.cyan}18` : 'none', border: 'none', borderRadius: 8, padding: '9px 11px', cursor: 'pointer', color: c.text, fontSize: 13.5, fontWeight: l.code === lang ? 700 : 500, fontFamily: 'inherit' }}>
-                <span style={{ fontSize: 17 }}>{l.flag}</span>{l.label}
+                <Flag cc={l.cc} size={22} />{l.label}
               </button>
             ))}
           </div>

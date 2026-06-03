@@ -4,14 +4,14 @@
 export type Lang = 'pt' | 'en' | 'es' | 'zh' | 'de' | 'fr' | 'it'
 export type Theme = 'dark' | 'light'
 
-export const LANGS: { code: Lang; label: string; flag: string }[] = [
-  { code: 'pt', label: 'Português', flag: '🇧🇷' },
-  { code: 'en', label: 'English',   flag: '🇺🇸' },
-  { code: 'es', label: 'Español',   flag: '🇪🇸' },
-  { code: 'zh', label: '中文',       flag: '🇨🇳' },
-  { code: 'de', label: 'Deutsch',   flag: '🇩🇪' },
-  { code: 'fr', label: 'Français',  flag: '🇫🇷' },
-  { code: 'it', label: 'Italiano',  flag: '🇮🇹' },
+export const LANGS: { code: Lang; label: string; cc: string }[] = [
+  { code: 'pt', label: 'Português', cc: 'br' },
+  { code: 'en', label: 'English',   cc: 'us' },
+  { code: 'es', label: 'Español',   cc: 'es' },
+  { code: 'zh', label: '中文',       cc: 'cn' },
+  { code: 'de', label: 'Deutsch',   cc: 'de' },
+  { code: 'fr', label: 'Français',  cc: 'fr' },
+  { code: 'it', label: 'Italiano',  cc: 'it' },
 ]
 
 export interface Palette {
@@ -73,6 +73,9 @@ const pt: Dict = {
   chat_greeting: 'Me descreva sua habilidade e receba diversos pedidos de graça. Faça um bikco e ganhe uma grana extra! 🦆',
   chat_placeholder: 'Ex: sou eletricista, faço faxina, monto móveis…',
   chat_send: 'Começar grátis', chat_open: 'Fazer um bikco',
+  net_badge: 'A rede de serviços humanos', free_badge: '100% grátis',
+  stats_countries: 'países alcançados',
+  live_cta: 'Cadastre-se como profissional e receba chamados em tempo real do mundo todo →',
 }
 
 const en: Dict = {
@@ -116,6 +119,9 @@ const en: Dict = {
   chat_greeting: 'Describe your skill and receive plenty of requests for free. Do a bikco and earn extra cash! 🦆',
   chat_placeholder: 'e.g. I am an electrician, I clean houses, I assemble furniture…',
   chat_send: 'Start for free', chat_open: 'Do a bikco',
+  net_badge: 'The human services network', free_badge: '100% free',
+  stats_countries: 'countries reached',
+  live_cta: 'Sign up as a pro and get real-time requests from all over the world →',
 }
 
 const es: Dict = {
@@ -159,6 +165,9 @@ const es: Dict = {
   chat_greeting: 'Descríbeme tu habilidad y recibe muchos pedidos gratis. ¡Haz un bikco y gana dinero extra! 🦆',
   chat_placeholder: 'Ej: soy electricista, hago limpieza, monto muebles…',
   chat_send: 'Empezar gratis', chat_open: 'Hacer un bikco',
+  net_badge: 'La red de servicios humanos', free_badge: '100% gratis',
+  stats_countries: 'países alcanzados',
+  live_cta: 'Regístrate como profesional y recibe pedidos en tiempo real de todo el mundo →',
 }
 
 const zh: Dict = {
@@ -202,6 +211,9 @@ const zh: Dict = {
   chat_greeting: '描述一下你的技能，免费收到大量需求。做个 bikco，赚点外快吧！🦆',
   chat_placeholder: '例如：我是电工、我做保洁、我装家具……',
   chat_send: '免费开始', chat_open: '做个 bikco',
+  net_badge: '人类服务网络', free_badge: '100% 免费',
+  stats_countries: '覆盖国家',
+  live_cta: '注册成为专业人士，实时接收来自全球的需求 →',
 }
 
 const de: Dict = {
@@ -245,6 +257,9 @@ const de: Dict = {
   chat_greeting: 'Beschreibe dein Können und erhalte kostenlos viele Anfragen. Mach einen bikco und verdien dir was dazu! 🦆',
   chat_placeholder: 'z. B. ich bin Elektriker, ich putze, ich montiere Möbel…',
   chat_send: 'Kostenlos starten', chat_open: 'Mach einen bikco',
+  net_badge: 'Das Netzwerk menschlicher Dienste', free_badge: '100% kostenlos',
+  stats_countries: 'erreichte Länder',
+  live_cta: 'Registriere dich als Profi und erhalte Anfragen aus aller Welt in Echtzeit →',
 }
 
 const fr: Dict = {
@@ -288,6 +303,9 @@ const fr: Dict = {
   chat_greeting: 'Décrivez votre savoir-faire et recevez plein de demandes gratuitement. Faites un bikco et gagnez un peu plus ! 🦆',
   chat_placeholder: 'ex. : je suis électricien, je fais le ménage, je monte des meubles…',
   chat_send: 'Commencer gratuitement', chat_open: 'Faire un bikco',
+  net_badge: 'Le réseau de services humains', free_badge: '100% gratuit',
+  stats_countries: 'pays atteints',
+  live_cta: 'Inscrivez-vous comme pro et recevez des demandes en temps réel du monde entier →',
 }
 
 const it: Dict = {
@@ -331,6 +349,9 @@ const it: Dict = {
   chat_greeting: 'Descrivimi la tua abilità e ricevi tante richieste gratis. Fai un bikco e guadagna qualcosa in più! 🦆',
   chat_placeholder: 'es. sono elettricista, faccio pulizie, monto mobili…',
   chat_send: 'Inizia gratis', chat_open: 'Fai un bikco',
+  net_badge: 'La rete dei servizi umani', free_badge: '100% gratis',
+  stats_countries: 'paesi raggiunti',
+  live_cta: 'Registrati come professionista e ricevi richieste in tempo reale da tutto il mondo →',
 }
 
 export const DICT: Record<Lang, Dict> = { pt, en, es, zh, de, fr, it }

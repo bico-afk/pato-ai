@@ -15,6 +15,7 @@ import HowItWorks from '@/components/landing/HowItWorks'
 import ClosingBanner from '@/components/landing/ClosingBanner'
 import SideToggle from '@/components/landing/SideToggle'
 import BikcoChat from '@/components/landing/BikcoChat'
+import GlobeBackdrop from '@/components/landing/GlobeBackdrop'
 
 export default function Home() {
   return (
@@ -53,6 +54,16 @@ function LandingInner() {
         {/* ── HERO: barra (esq) + globo (dir) ──────────────────── */}
         <section ref={heroRef} className="hero-grid" style={{ maxWidth: 1120, margin: '0 auto', padding: 'clamp(24px, 5dvh, 56px) 20px 56px' }}>
           <div className="hero-left">
+            {/* Badge de posicionamento + gratuito */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700, color: c.cyan, background: `${c.cyan}14`, border: `1px solid ${c.cyan}40`, borderRadius: 99, padding: '5px 12px' }}>
+                🌐 {t('net_badge')}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, color: c.ink, background: c.amber, borderRadius: 99, padding: '5px 12px' }}>
+                ✓ {t('free_badge')}
+              </span>
+            </div>
+
             <h1 className="text-[40px] sm:text-[52px] lg:text-[60px]" style={{ fontWeight: 900, letterSpacing: '-1.6px', lineHeight: 1.07, marginBottom: 14, color: c.text }}>
               {t('hero_title')}
             </h1>
@@ -64,12 +75,7 @@ function LandingInner() {
           </div>
 
           <div className="hero-right">
-            <div style={{ position: 'relative', borderRadius: 22, border: `1px solid ${c.border}`, background: 'radial-gradient(circle at 50% 30%, #12131a, #060608)', overflow: 'hidden', height: '100%', minHeight: 360, boxShadow: `0 30px 80px -40px ${c.cyan}55` }}>
-              <LiveGlobe />
-            </div>
-            <p style={{ fontSize: 12.5, color: c.text2, textAlign: 'center', margin: '12px 4px 0', lineHeight: 1.5 }}>
-              {t('globe_title')}
-            </p>
+            <LiveGlobe />
           </div>
         </section>
 
@@ -79,9 +85,14 @@ function LandingInner() {
         {/* ── NÚMEROS ──────────────────────────────────────────── */}
         <Stats />
 
-        {/* ── PEDIDOS CHEGANDO AGORA (feed real) ───────────────── */}
-        <section style={{ borderTop: `1px solid ${c.border}`, paddingTop: 56, background: c.bg }}>
-          <DemandFeed title={t('globe_live') === 'live' ? 'Live requests coming in' : 'Pedidos chegando agora'} />
+        {/* ── PEDIDOS CHEGANDO AGORA (feed real, com globo ao fundo) ── */}
+        <section style={{ position: 'relative', borderTop: `1px solid ${c.border}`, paddingTop: 56, background: c.bg, overflow: 'hidden' }}>
+          <div aria-hidden style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 0 }}>
+            <GlobeBackdrop color={c.cyan} opacity={c.bg === '#0A0A0B' ? 0.1 : 0.16} size={640} />
+          </div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <DemandFeed title={t('globe_live') === 'live' ? 'Live requests coming in' : 'Pedidos chegando agora'} />
+          </div>
         </section>
 
         {/* ── DEPOIMENTOS ──────────────────────────────────────── */}
@@ -130,9 +141,7 @@ function LandingInner() {
         .hero-grid { display: grid; grid-template-columns: 1fr; gap: 28px; align-items: start; }
         @media (min-width: 920px) {
           .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 40px; }
-          .hero-right { position: sticky; top: 72px; }
         }
-        .hero-right > div:first-child { height: clamp(360px, 46vw, 460px); }
         .purpose-dot { animation: purpose-blink 2s ease-in-out infinite; }
         @keyframes purpose-blink { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(255,197,61,0.5);} 50% { opacity:0.5; box-shadow:0 0 0 4px rgba(255,197,61,0);} }
         @media (prefers-reduced-motion: reduce) { .purpose-dot { animation: none !important; } }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLanding } from './LandingProvider'
 import BikcoDuck from './BikcoDuck'
@@ -12,6 +12,12 @@ export default function BikcoChat() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
+
+  // Abre sozinho pouco depois de carregar (uma vez).
+  useEffect(() => {
+    const tm = setTimeout(() => setOpen(true), 1400)
+    return () => clearTimeout(tm)
+  }, [])
 
   function go() {
     const q = text.trim()

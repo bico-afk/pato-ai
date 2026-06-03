@@ -6,7 +6,7 @@ import { useLanding } from './LandingProvider'
 /* Três contadores grandes com count-up ao entrar na viewport.
    Números demonstrativos do alcance da rede (não métricas reais).
    tabular-nums para não "pular" durante a animação. */
-const TARGETS = [1280, 340, 5600]
+const TARGETS = [1280, 12400, 96, 54000]
 
 function useCountUp(target: number, run: boolean, ms = 1400) {
   const [n, setN] = useState(0)
@@ -31,7 +31,7 @@ export default function Stats() {
   const { c, t } = useLanding()
   const ref = useRef<HTMLDivElement>(null)
   const [run, setRun] = useState(false)
-  const labels = [t('stats_1'), t('stats_2'), t('stats_3')]
+  const labels = [t('stats_1'), t('stats_2'), t('stats_countries'), t('stats_3')]
 
   useEffect(() => {
     const el = ref.current

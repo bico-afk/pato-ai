@@ -2,8 +2,9 @@
 
 import { useLanding } from './LandingProvider'
 import BikcoDuck from './BikcoDuck'
+import Flag from './Flag'
 
-const FLAGS = ['🇧🇷','🇵🇹','🇺🇸','🇪🇸','🇲🇽','🇦🇷','🇨🇴','🇫🇷','🇩🇪','🇮🇹','🇬🇧','🇳🇬','🇰🇪','🇪🇬','🇮🇳','🇨🇳','🇯🇵','🇵🇭','🇮🇩','🇹🇷','🇦🇺','🇨🇦']
+const FLAG_CCS = ['br','pt','us','es','mx','ar','co','fr','de','it','gb','ng','ke','eg','in','cn','jp','ph','id','tr','au','ca','cl','pe','za','nl','se','pl']
 
 export default function WorldwideMission() {
   const { c, t } = useLanding()
@@ -27,9 +28,12 @@ export default function WorldwideMission() {
         </div>
 
         {/* faixa de bandeiras */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10, fontSize: 26, marginBottom: 64, maxWidth: 640, marginInline: 'auto' }}>
-          {FLAGS.map((f, i) => <span key={i} style={{ filter: 'saturate(1.05)' }}>{f}</span>)}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginBottom: 18, maxWidth: 680, marginInline: 'auto' }}>
+          {FLAG_CCS.map((cc, i) => <Flag key={i} cc={cc} size={30} />)}
         </div>
+        <p style={{ textAlign: 'center', fontSize: 13, color: c.text2, margin: '0 auto 60px', maxWidth: 520 }}>
+          + de <strong style={{ color: c.text }}>90 países</strong> e <strong style={{ color: c.text }}>12 mil cidades</strong> conectadas por serviços humanos.
+        </p>
 
         {/* dois blocos: gratuito + era da IA */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>

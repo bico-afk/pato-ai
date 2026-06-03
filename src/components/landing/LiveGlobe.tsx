@@ -93,9 +93,8 @@ export default function LiveGlobe() {
       ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), pos.clone().normalize())
       globe.add(marker); globe.add(ring)
       pings.push({ marker, ring, born: performance.now(), ttl: 2600 })
-      const key = p.id
-      setCards(prev => [...prev.slice(-1), { key, ping: p }])
-      window.setTimeout(() => setCards(prev => prev.filter(x => x.key !== key)), 4600)
+      // mantém SEMPRE os 5 últimos (mais recente no topo)
+      setCards(prev => [{ key: p.id, ping: p }, ...prev].slice(0, 5))
     }
 
     let dragging = false, lastX = 0, lastY = 0, vx = 0
@@ -138,9 +137,9 @@ export default function LiveGlobe() {
     }
     raf = requestAnimationFrame(render)
 
-    const seed = isMobile ? 2 : 4
-    for (let i = 0; i < seed; i++) window.setTimeout(() => spawnPing(randomPing()), i * 500)
-    const spawnTimer = window.setInterval(() => { if (visible) spawnPing(randomPing()) }, reduce ? 4200 : (isMobile ? 2600 : 1800))
+    // já começa com os 5 últimos preenchidos
+    for (let i = 0; i < 5; i++) window.setTimeout(() => spawnPing(randomPing()), i * 350)
+    const spawnTimer = window.setInterval(() => { if (visible) spawnPing(randomPing()) }, reduce ? 5000 : 3600)
 
     const ro = new ResizeObserver(resize)
     ro.observe(mount)
@@ -156,35 +155,38 @@ export default function LiveGlobe() {
   }, [])
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320 }}>
-      {/* badge ao vivo */}
-      <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7, pointerEvents: 'none' }}>
-        <span className="lg-livedot" style={{ width: 8, height: 8, borderRadius: '50%', background: c.cyan }} />
-        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.cyan }}>{t('globe_live')}</span>
+    <div style={{ width: '100%' }}>
+      {/* Painel do globo */}
+      <div style={{ position: 'relative', borderRadius: 22, border: `1px solid ${c.border}`, background: 'radial-gradient(circle at 50% 30%, #12131a, #060608)', overflow: 'hidden', height: 'clamp(300px, 42vw, 400px)', boxShadow: `0 30px 80px -40px ${c.cyan}55` }}>
+        <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7, pointerEvents: 'none' }}>
+          <span className="lg-livedot" style={{ width: 8, height: 8, borderRadius: '50%', background: c.cyan }} />
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.cyan }}>{t('globe_live')}</span>
+        </div>
+        <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 2, fontSize: 11, color: '#9aa', pointerEvents: 'none', textAlign: 'right' }}>
+          <span style={{ color: c.amber, fontWeight: 700 }}>● {t('globe_asking')}</span> · <span style={{ color: c.cyan, fontWeight: 700 }}>● {t('globe_offering')}</span>
+        </div>
+        <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+        <p style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: '#9aa', margin: 0, pointerEvents: 'none' }}>↔ {t('globe_drag')}</p>
       </div>
-      {/* legenda */}
-      <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 2, fontSize: 11, color: c.text2, pointerEvents: 'none', textAlign: 'right' }}>
-        <span style={{ color: c.amber, fontWeight: 700 }}>● {t('globe_asking')}</span> · <span style={{ color: c.cyan, fontWeight: 700 }}>● {t('globe_offering')}</span>
-      </div>
 
-      <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+      {/* CTA: cadastre-se como profissional */}
+      <a href="/prestador" style={{ display: 'block', textAlign: 'center', marginTop: 12, padding: '12px 14px', borderRadius: 12, background: `${c.cyan}14`, border: `1px solid ${c.cyan}44`, color: c.cyan, fontSize: 13.5, fontWeight: 700, textDecoration: 'none', lineHeight: 1.4 }}>
+        {t('live_cta')}
+      </a>
 
-      {/* hint arraste */}
-      <p style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: c.text2, margin: 0, pointerEvents: 'none' }}>↔ {t('globe_drag')}</p>
-
-      {/* cards flutuantes (também serve de fallback textual) */}
-      <div aria-live="polite" style={{ position: 'absolute', left: 8, right: 8, bottom: 30, display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
+      {/* Lista: sempre os 5 últimos */}
+      <div aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
         {cards.map(({ key, ping }) => (
           <div key={key} className="lg-card" style={{
-            background: c.surface, border: `1px solid ${ping.tipo === 'pedido' ? `${c.amber}55` : `${c.cyan}55`}`,
-            borderRadius: 12, padding: '9px 12px', backdropFilter: 'blur(6px)', textAlign: 'left', maxWidth: 300, marginInline: 'auto', width: '100%',
+            background: c.surface, border: `1px solid ${ping.tipo === 'pedido' ? `${c.amber}44` : `${c.cyan}44`}`,
+            borderRadius: 12, padding: '10px 13px', textAlign: 'left',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: ping.tipo === 'pedido' ? c.amber : c.cyan, flexShrink: 0 }} />
               <span style={{ fontSize: 11.5, fontWeight: 700, color: ping.tipo === 'pedido' ? c.amber : c.cyan }}>{ping.handle}</span>
-              <span style={{ fontSize: 11, color: c.text2 }}>· {ping.cidade}</span>
+              <span style={{ fontSize: 11, color: c.text2 }}>· {ping.cidade}, {ping.pais}</span>
             </div>
-            <p style={{ fontSize: 12.5, color: c.text, lineHeight: 1.35, margin: 0 }}>“{ping.texto}”</p>
+            <p style={{ fontSize: 13, color: c.text, lineHeight: 1.4, margin: 0 }}>“{ping.texto}”</p>
           </div>
         ))}
       </div>
@@ -192,8 +194,8 @@ export default function LiveGlobe() {
       <style>{`
         .lg-livedot { animation: lg-pulse 1.6s ease-in-out infinite; }
         @keyframes lg-pulse { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(45,212,191,0.5);} 50% { opacity:0.6; box-shadow:0 0 0 5px rgba(45,212,191,0);} }
-        .lg-card { animation: lg-cardin 0.4s ease-out both; }
-        @keyframes lg-cardin { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform:none; } }
+        .lg-card { animation: lg-cardin 0.35s ease-out both; }
+        @keyframes lg-cardin { from { opacity:0; transform: translateY(-6px);} to { opacity:1; transform:none; } }
         @media (prefers-reduced-motion: reduce) { .lg-livedot, .lg-card { animation: none !important; } }
       `}</style>
     </div>

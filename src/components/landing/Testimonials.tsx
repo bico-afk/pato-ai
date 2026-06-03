@@ -1,6 +1,7 @@
 'use client'
 
 import { useLanding } from './LandingProvider'
+import Flag from './Flag'
 
 interface Testi { name: string; role: string; city: string; flag: string; quote: string; tone: 'amber' | 'cyan' }
 
@@ -50,7 +51,9 @@ function Card({ t, accent }: { t: Testi; accent: { amber: string; cyan: string; 
         </div>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontSize: 14, fontWeight: 700, color: accent.text, margin: 0 }}>{t.name}</p>
-          <p style={{ fontSize: 12, color: accent.text2, margin: '1px 0 0' }}>{t.role} · {t.flag} {t.city}</p>
+          <p style={{ fontSize: 12, color: accent.text2, margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
+            {t.role} · <Flag cc={t.city.slice(-2).toLowerCase()} size={16} /> {t.city}
+          </p>
         </div>
       </div>
       <div style={{ color: accent.amber, fontSize: 13, letterSpacing: 1 }}>★★★★★</div>
