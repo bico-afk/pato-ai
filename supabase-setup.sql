@@ -80,11 +80,20 @@ create policy "users_update_own" on users for update
   with check (auth.uid() = auth_id);
 
 -- ───────────────────────────────────────────────────────────
---  REALTIME — habilita o feed "ao vivo"
+--  REALTIME — habilita o feed "ao vivo" (idempotente, não dá erro se já adicionado)
 -- ───────────────────────────────────────────────────────────
-alter publication supabase_realtime add table demands;
-alter publication supabase_realtime add table applications;
-alter publication supabase_realtime add table messages;
+do $$
+declare t text;
+begin
+  foreach t in array array['demands','applications','messages'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 -- ───────────────────────────────────────────────────────────
 --  APPLICATIONS (candidaturas)
