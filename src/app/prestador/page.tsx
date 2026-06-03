@@ -8,7 +8,7 @@ import AuthForm from '@/components/auth/AuthForm'
 
 interface Msg { role: 'user' | 'assistant'; content: string }
 interface ProfileData {
-  nome: string; headline: string; skills: string[]; cidade: string; estado: string; bio: string
+  nome: string; headline: string; skills: string[]; cidade: string; estado: string; bio: string; whatsapp?: string
 }
 
 const GREETING = 'Oi! 👋 Que bom te ver por aqui. Me conta: o que você sabe fazer? Pode falar do seu jeito — qual serviço você oferece?'

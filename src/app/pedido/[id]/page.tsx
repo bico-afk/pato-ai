@@ -31,8 +31,8 @@ interface Application {
   message:         string
   status:          string
   created_at:      string
-  users: { username: string; full_name: string | null; avatar_url: string | null } | null
-  professional_profiles: { headline: string | null; avg_rating: number | null; total_jobs_completed: number | null } | null
+  users: { username: string; full_name: string | null; avatar_url: string | null; bio: string | null; phone: string | null; phone_country_code: string | null } | null
+  professional_profiles: { headline: string | null; skills: string[] | null; avg_rating: number | null; total_jobs_completed: number | null; trust_score: number | null } | null
 }
 
 /* ── Helpers ──────────────────────────────────────────────── */
@@ -53,6 +53,15 @@ function timeAgo(iso: string) {
 
 const initials = (n: string) =>
   (n ?? '').split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?'
+
+/** Builds a wa.me link from a stored phone, or null if no usable number. */
+function waLink(phone: string | null | undefined, cc: string | null | undefined, msg: string): string | null {
+  let d = (phone ?? '').replace(/\D/g, '')
+  if (!d) return null
+  const ccd = (cc ?? '+55').replace(/\D/g, '') || '55'
+  if (!d.startsWith(ccd) && d.length <= 11) d = ccd + d
+  return `https://wa.me/${d}?text=${encodeURIComponent(msg)}`
+}
 
 /** Rejects if the promise/thenable doesn't settle within `ms` — guards against
  *  the session client's getSession() hanging during a token refresh. */
@@ -163,8 +172,8 @@ export default function PedidoPage() {
             .from('applications')
             .select(`
               id, professional_id, message, status, created_at,
-              users ( username, full_name, avatar_url ),
-              professional_profiles ( headline, avg_rating, total_jobs_completed )
+              users ( username, full_name, avatar_url, bio, phone, phone_country_code ),
+              professional_profiles ( headline, skills, avg_rating, total_jobs_completed, trust_score )
             `)
             .eq('demand_id', id)
             .order('created_at', { ascending: true }), 8_000) as { data: Application[] | null }
@@ -431,6 +440,7 @@ export default function PedidoPage() {
                     onAccept={() => handleAccept(app)}
                     onDecline={() => handleDecline(app.id)}
                     accepting={accepting === app.id}
+                    demandDesc={demand.description.slice(0, 60)}
                   />
                 ))}
               </div>
@@ -450,6 +460,7 @@ export default function PedidoPage() {
                       onAccept={() => handleAccept(app)}
                       onDecline={() => handleDecline(app.id)}
                       accepting={accepting === app.id}
+                      demandDesc={demand.description.slice(0, 60)}
                     />
                   ))}
                 </div>
@@ -480,18 +491,22 @@ export default function PedidoPage() {
 
 /* ── ApplicationCard ──────────────────────────────────────── */
 function ApplicationCard({
-  app, onAccept, onDecline, accepting
+  app, onAccept, onDecline, accepting, demandDesc,
 }: {
-  app:       Application
-  onAccept:  () => void
-  onDecline: () => void
-  accepting: boolean
+  app:        Application
+  onAccept:   () => void
+  onDecline:  () => void
+  accepting:  boolean
+  demandDesc: string
 }) {
   const isPending  = app.status === 'pending'
   const isAccepted = app.status === 'accepted'
   const isRejected = app.status === 'rejected'
   const pp  = app.professional_profiles
   const usr = app.users
+  const wa  = waLink(usr?.phone, usr?.phone_country_code,
+    `Olá ${usr?.full_name ?? ''}! Vi sua candidatura no meu pedido "${demandDesc}" na Bikco e gostaria de conversar. 😊`)
+  const skills = (pp?.skills ?? []).slice(0, 4)
 
   return (
     <div style={{
@@ -530,26 +545,52 @@ function ApplicationCard({
               {pp.total_jobs_completed} bico{pp.total_jobs_completed !== 1 ? 's' : ''}
             </span>
           )}
+          {pp?.trust_score != null && pp.trust_score > 0 && (
+            <span style={{ fontSize: 11, color: '#00d4ff', fontWeight: 700 }}>score {Math.round(pp.trust_score)}</span>
+          )}
           {isAccepted && <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 700 }}>✓ Aceito</span>}
           {isRejected && <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700 }}>Recusado</span>}
         </div>
       </div>
 
-      {/* Message */}
+      {/* Skills */}
+      {skills.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {skills.map((s, i) => (
+            <span key={i} style={{ fontSize: 11, color: '#9ca3af', background: '#111', border: '1px solid #222', borderRadius: 99, padding: '3px 9px' }}>{s}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Bio */}
+      {usr?.bio && (
+        <p style={{ fontSize: 12.5, color: '#888', lineHeight: 1.55, margin: '0 0 12px' }}>{usr.bio}</p>
+      )}
+
+      {/* Application message */}
       <p style={{ fontSize: 14, color: '#bbb', lineHeight: 1.6, margin: '0 0 14px', padding: '12px 14px', background: '#111', borderRadius: 8 }}>
         {app.message}
       </p>
 
       {/* Actions */}
-      {isPending && (
-        <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {isPending && (
           <button
             onClick={onAccept}
             disabled={accepting}
-            style={{ flex: 1, height: 40, borderRadius: 8, border: 'none', background: accepting ? '#1a1a1a' : '#fff', color: accepting ? '#444' : '#000', fontSize: 13, fontWeight: 800, cursor: accepting ? 'not-allowed' : 'pointer' }}
+            style={{ flex: 1, minWidth: 120, height: 40, borderRadius: 8, border: 'none', background: accepting ? '#1a1a1a' : '#fff', color: accepting ? '#444' : '#000', fontSize: 13, fontWeight: 800, cursor: accepting ? 'not-allowed' : 'pointer' }}
           >
-            {accepting ? '...' : 'Aceitar →'}
+            {accepting ? '...' : 'Aceitar e abrir chat →'}
           </button>
+        )}
+
+        {wa ? (
+          <a href={wa} target="_blank" rel="noopener noreferrer"
+            style={{ height: 40, padding: '0 16px', borderRadius: 8, border: 'none', background: '#25D366', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347M12.05 21.785h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884a9.82 9.82 0 0 1 6.988 2.898 9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885M20.52 3.449C18.24 1.245 15.24.044 12.045.044 5.463.044.018 5.488.016 12.07a11.82 11.82 0 0 0 1.588 5.945L0 24l6.117-1.605a11.9 11.9 0 0 0 5.688 1.448h.005c6.581 0 11.987-5.443 11.989-12.027a11.95 11.95 0 0 0-3.279-8.367"/></svg>
+            WhatsApp
+          </a>
+        ) : isPending && (
           <button
             onClick={onDecline}
             disabled={accepting}
@@ -557,11 +598,21 @@ function ApplicationCard({
           >
             Recusar
           </button>
-        </div>
-      )}
+        )}
+
+        {wa && isPending && (
+          <button
+            onClick={onDecline}
+            disabled={accepting}
+            style={{ height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #333', background: 'none', color: '#555', fontSize: 13, cursor: 'pointer' }}
+          >
+            Recusar
+          </button>
+        )}
+      </div>
 
       {isAccepted && (
-        <p style={{ fontSize: 12, color: '#22c55e', margin: 0, fontWeight: 600 }}>
+        <p style={{ fontSize: 12, color: '#22c55e', margin: '12px 0 0', fontWeight: 600 }}>
           ✓ Chat aberto com este profissional
         </p>
       )}

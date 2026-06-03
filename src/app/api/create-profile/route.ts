@@ -14,6 +14,7 @@ interface ProfileBody {
   cidade?:   string
   estado?:   string
   bio?:      string
+  whatsapp?: string
 }
 
 export async function POST(req: NextRequest) {
@@ -31,16 +32,19 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() }
   catch { return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 }) }
 
-  const { nome, headline, skills, cidade, estado, bio } = body
+  const { nome, headline, skills, cidade, estado, bio, whatsapp } = body
   if (!nome || !skills?.length || !cidade) {
     return NextResponse.json({ ok: false, error: 'dados_incompletos' }, { status: 400 })
   }
 
+  const phone = (whatsapp ?? '').replace(/\D/g, '') || null
+
   try {
-    // 1) basic user info
+    // 1) basic user info (incl. WhatsApp for clients to reach the professional)
     await supabase.from('users').update({
-      full_name: nome,
-      bio:       bio ?? null,
+      full_name:          nome,
+      bio:                bio ?? null,
+      ...(phone ? { phone, phone_country_code: '+55' } : {}),
     }).eq('id', userId)
 
     // 2) professional profile (insert or update)
