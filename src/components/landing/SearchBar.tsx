@@ -169,6 +169,17 @@ export default function SearchBar({ onSearch, loading }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
+  // Joga o texto da IA para o campo principal, substituindo o que foi digitado.
+  // Marca como "já refinado" para não disparar uma nova geração automática.
+  function replaceWithAI() {
+    const t = aiSuggestion.trim()
+    if (!t) return
+    setQuery(t)
+    lastRefinedRef.current = t
+    suggestionEditedRef.current = true
+    inputRef.current?.focus()
+  }
+
   // Texto final publicado: a versão editada da IA (se houver) ou o texto digitado.
   const finalText = (aiSuggestion.trim() || query.trim())
   const hasPlaceholder = /(^|\s)X(\s|$|,|\.|;)/.test(aiSuggestion)
@@ -288,11 +299,18 @@ export default function SearchBar({ onSearch, loading }: Props) {
               ✨ Descrição sugerida pela IA
               {aiLoading && <span style={{ width: 12, height: 12, border: '2px solid rgba(0,212,255,0.3)', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />}
             </span>
-            <button type="button" onClick={() => refineWithAI(query.trim())} disabled={aiLoading || query.trim().length < 10}
-              title="Gerar uma nova sugestão a partir do que você digitou"
-              style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid #234', borderRadius: 7, padding: '5px 10px', color: query.trim().length < 10 ? '#345' : '#00d4ff', fontSize: 12, fontWeight: 600, cursor: aiLoading || query.trim().length < 10 ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-              ↻ Gerar de novo
-            </button>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button type="button" onClick={replaceWithAI} disabled={aiLoading || !aiSuggestion.trim()}
+                title="Substituir o que você digitou pelo texto da IA"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: aiSuggestion.trim() ? '#fff' : '#1a1a1a', border: 'none', borderRadius: 7, padding: '5px 11px', color: aiSuggestion.trim() ? '#000' : '#444', fontSize: 12, fontWeight: 800, cursor: aiLoading || !aiSuggestion.trim() ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                ⬆ Substituir
+              </button>
+              <button type="button" onClick={() => refineWithAI(query.trim())} disabled={aiLoading || query.trim().length < 10}
+                title="Gerar uma nova sugestão a partir do que você digitou"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid #234', borderRadius: 7, padding: '5px 10px', color: query.trim().length < 10 ? '#345' : '#00d4ff', fontSize: 12, fontWeight: 600, cursor: aiLoading || query.trim().length < 10 ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                ↻ Gerar de novo
+              </button>
+            </div>
           </div>
 
           <textarea
