@@ -2,18 +2,30 @@
 
 import { useRef } from 'react'
 import Link from 'next/link'
+import LandingProvider, { useLanding } from '@/components/landing/LandingProvider'
+import TopControls from '@/components/landing/TopControls'
 import PublishBar from '@/components/landing/PublishBar'
 import DemandFeed from '@/components/demand/DemandFeed'
 import LiveGlobe from '@/components/landing/LiveGlobe'
+import WorldwideMission from '@/components/landing/WorldwideMission'
 import Stats from '@/components/landing/Stats'
+import Testimonials from '@/components/landing/Testimonials'
 import TwoDoors from '@/components/landing/TwoDoors'
 import HowItWorks from '@/components/landing/HowItWorks'
 import ClosingBanner from '@/components/landing/ClosingBanner'
 import SideToggle from '@/components/landing/SideToggle'
-import BikcoDuck from '@/components/landing/BikcoDuck'
-import { C } from '@/lib/landingTokens'
+import BikcoChat from '@/components/landing/BikcoChat'
 
 export default function Home() {
+  return (
+    <LandingProvider>
+      <LandingInner />
+    </LandingProvider>
+  )
+}
+
+function LandingInner() {
+  const { c, t } = useLanding()
   const heroRef = useRef<HTMLElement>(null)
 
   function focusPublish() {
@@ -23,85 +35,104 @@ export default function Home() {
   }
 
   return (
-    <main style={{ background: C.bg, minHeight: '100dvh', color: C.text, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <main style={{ background: c.bg, minHeight: '100dvh', color: c.text, fontFamily: "'Inter', system-ui, sans-serif", position: 'relative', overflow: 'hidden' }}>
+      {/* brilhos artísticos de fundo */}
+      <div aria-hidden style={{ position: 'absolute', top: -120, left: -80, width: 460, height: 460, background: `radial-gradient(circle, ${c.amber}1f, transparent 62%)`, pointerEvents: 'none', zIndex: 0 }} />
+      <div aria-hidden style={{ position: 'absolute', top: 120, right: -120, width: 520, height: 520, background: `radial-gradient(circle, ${c.cyan}1c, transparent 62%)`, pointerEvents: 'none', zIndex: 0 }} />
 
-      {/* ── LINHA DE PROPÓSITO (estilo OpenAI) ─────────────────── */}
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '28px 20px 0' }}>
-        <Link href="/sobre" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
-          <span className="purpose-dot" style={{ width: 7, height: 7, borderRadius: '50%', background: C.amber, flexShrink: 0 }} />
-          <span style={{ fontSize: 12.5, letterSpacing: '0.04em', color: C.text2, fontWeight: 500 }}>
-            Todo mundo precisa de alguém. Todo mundo sabe fazer alguma coisa.
-          </span>
-        </Link>
-      </div>
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {/* ── Barra superior: propósito + idioma/tema ──────────── */}
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <Link href="/sobre" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
+            <span className="purpose-dot" style={{ width: 7, height: 7, borderRadius: '50%', background: c.amber, flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, letterSpacing: '0.03em', color: c.text2, fontWeight: 500 }}>{t('purpose')}</span>
+          </Link>
+          <TopControls />
+        </div>
 
-      {/* ── HERO ───────────────────────────────────────────────── */}
-      <section ref={heroRef} style={{ maxWidth: 640, margin: '0 auto', padding: '0 20px', paddingTop: 'clamp(24px, 5dvh, 48px)', paddingBottom: 48 }}>
-        <h1 className="text-[40px] sm:text-[52px] lg:text-[60px]" style={{ fontWeight: 900, letterSpacing: '-1.6px', lineHeight: 1.08, marginBottom: 14, color: C.text }}>
-          O que você precisa resolver?
-        </h1>
-        <p style={{ fontSize: 'clamp(14px, 2vw, 17px)', color: C.text2, lineHeight: 1.6, marginBottom: 28, maxWidth: 500 }}>
-          Descreva sua necessidade e publique. Profissionais de confiança da sua região encontram você — em minutos. De graça.
-        </p>
+        {/* ── HERO: barra (esq) + globo (dir) ──────────────────── */}
+        <section ref={heroRef} className="hero-grid" style={{ maxWidth: 1120, margin: '0 auto', padding: 'clamp(24px, 5dvh, 56px) 20px 56px' }}>
+          <div className="hero-left">
+            <h1 className="text-[40px] sm:text-[52px] lg:text-[60px]" style={{ fontWeight: 900, letterSpacing: '-1.6px', lineHeight: 1.07, marginBottom: 14, color: c.text }}>
+              {t('hero_title')}
+            </h1>
+            <p style={{ fontSize: 'clamp(14px, 2vw, 17px)', color: c.text2, lineHeight: 1.6, marginBottom: 28, maxWidth: 520 }}>
+              {t('hero_sub')}
+            </p>
+            <PublishBar />
+            <SideToggle onResolve={focusPublish} />
+          </div>
 
-        {/* Barra de publicação (preservada) */}
-        <PublishBar />
+          <div className="hero-right">
+            <div style={{ position: 'relative', borderRadius: 22, border: `1px solid ${c.border}`, background: 'radial-gradient(circle at 50% 30%, #12131a, #060608)', overflow: 'hidden', height: '100%', minHeight: 360, boxShadow: `0 30px 80px -40px ${c.cyan}55` }}>
+              <LiveGlobe />
+            </div>
+            <p style={{ fontSize: 12.5, color: c.text2, textAlign: 'center', margin: '12px 4px 0', lineHeight: 1.5 }}>
+              {t('globe_title')}
+            </p>
+          </div>
+        </section>
 
-        {/* Alternador de lado (os dois lados importam) */}
-        <SideToggle onResolve={focusPublish} />
-      </section>
+        {/* ── MUNDO + GRATUITO + ERA DA IA ─────────────────────── */}
+        <WorldwideMission />
 
-      {/* ── GLOBO VIVO (gancho de curiosidade) ─────────────────── */}
-      <LiveGlobe />
+        {/* ── NÚMEROS ──────────────────────────────────────────── */}
+        <Stats />
 
-      {/* ── NÚMEROS QUE ANIMAM ─────────────────────────────────── */}
-      <Stats />
+        {/* ── PEDIDOS CHEGANDO AGORA (feed real) ───────────────── */}
+        <section style={{ borderTop: `1px solid ${c.border}`, paddingTop: 56, background: c.bg }}>
+          <DemandFeed title={t('globe_live') === 'live' ? 'Live requests coming in' : 'Pedidos chegando agora'} />
+        </section>
 
-      {/* ── PEDIDOS CHEGANDO AGORA (feed real, preservado) ─────── */}
-      <section style={{ borderTop: `1px solid ${C.border}`, paddingTop: 56, background: C.bg }}>
-        <DemandFeed title="Pedidos chegando agora" />
-      </section>
+        {/* ── DEPOIMENTOS ──────────────────────────────────────── */}
+        <Testimonials />
 
-      {/* ── DUAS PORTAS ────────────────────────────────────────── */}
-      <TwoDoors onResolve={focusPublish} />
+        {/* ── DUAS PORTAS ──────────────────────────────────────── */}
+        <TwoDoors onResolve={focusPublish} />
 
-      {/* ── COMO FUNCIONA ──────────────────────────────────────── */}
-      <HowItWorks />
+        {/* ── COMO FUNCIONA ────────────────────────────────────── */}
+        <HowItWorks />
 
-      {/* ── FAIXA DE FECHO ─────────────────────────────────────── */}
-      <ClosingBanner onResolve={focusPublish} />
+        {/* ── FAIXA DE FECHO ───────────────────────────────────── */}
+        <ClosingBanner onResolve={focusPublish} />
 
-      {/* ── RODAPÉ ─────────────────────────────────────────────── */}
-      <footer style={{ borderTop: `1px solid ${C.border}`, padding: '36px 20px', background: C.bg }}>
-        <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <BikcoDuck size={22} />
+        {/* ── RODAPÉ ───────────────────────────────────────────── */}
+        <footer style={{ borderTop: `1px solid ${c.border}`, padding: '36px 20px', background: c.bg }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20 }}>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 900, color: C.text, margin: 0, letterSpacing: '-0.5px' }}>BIKCO</p>
-              <p style={{ fontSize: 12, color: C.text2, margin: '2px 0 0' }}>Feito no Brasil, para o mundo.</p>
+              <p style={{ fontSize: 14, fontWeight: 900, color: c.text, margin: 0, letterSpacing: '-0.5px' }}>BIKCO</p>
+              <p style={{ fontSize: 12, color: c.text2, margin: '2px 0 0' }}>{t('foot_tagline')}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              {[
+                { label: t('foot_about'), href: '/sobre' },
+                { label: t('foot_pros'), href: '/prestador' },
+                { label: t('foot_how'), href: '/sobre' },
+                { label: 'WhatsApp', href: `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? ''}` },
+                { label: t('foot_terms'), href: '/termos' },
+                { label: t('foot_privacy'), href: '/privacidade' },
+              ].map(l => (
+                <a key={l.label} href={l.href} style={{ fontSize: 12.5, color: c.text2, textDecoration: 'none', transition: 'color 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = c.text)}
+                  onMouseLeave={e => (e.currentTarget.style.color = c.text2)}>
+                  {l.label}
+                </a>
+              ))}
             </div>
           </div>
+        </footer>
+      </div>
 
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Sobre', href: '/sobre' },
-              { label: 'Para profissionais', href: '/prestador' },
-              { label: 'Como funciona', href: '/sobre' },
-              { label: 'WhatsApp', href: `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? ''}` },
-              { label: 'Termos', href: '/termos' },
-              { label: 'Privacidade', href: '/privacidade' },
-            ].map(l => (
-              <a key={l.label} href={l.href} style={{ fontSize: 12.5, color: C.text2, textDecoration: 'none', transition: 'color 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.color = C.text)}
-                onMouseLeave={e => (e.currentTarget.style.color = C.text2)}>
-                {l.label}
-              </a>
-            ))}
-          </div>
-        </div>
-      </footer>
+      {/* Chat flutuante no canto */}
+      <BikcoChat />
 
       <style>{`
+        .hero-grid { display: grid; grid-template-columns: 1fr; gap: 28px; align-items: start; }
+        @media (min-width: 920px) {
+          .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 40px; }
+          .hero-right { position: sticky; top: 72px; }
+        }
+        .hero-right > div:first-child { height: clamp(360px, 46vw, 460px); }
         .purpose-dot { animation: purpose-blink 2s ease-in-out infinite; }
         @keyframes purpose-blink { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(255,197,61,0.5);} 50% { opacity:0.5; box-shadow:0 0 0 4px rgba(255,197,61,0);} }
         @media (prefers-reduced-motion: reduce) { .purpose-dot { animation: none !important; } }

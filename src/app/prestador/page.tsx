@@ -26,9 +26,18 @@ export default function PrestadorPage() {
 
   // Optional return target (e.g. coming from "Me candidatar" on a pedido)
   const [next, setNext] = useState('/perfil')
+  const skillSentRef = useRef(false)
   useEffect(() => {
-    const n = new URLSearchParams(window.location.search).get('next')
+    const params = new URLSearchParams(window.location.search)
+    const n = params.get('next')
     if (n) setNext(n)
+    // Veio do chat do canto da landing (?skill=...) → já manda como 1ª mensagem.
+    const skill = params.get('skill')
+    if (skill && skill.trim() && !skillSentRef.current) {
+      skillSentRef.current = true
+      setTimeout(() => sendText(skill.trim()), 300)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const [messages, setMessages] = useState<Msg[]>([{ role: 'assistant', content: GREETING }])
