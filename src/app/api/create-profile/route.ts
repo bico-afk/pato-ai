@@ -8,13 +8,18 @@ export const runtime = 'nodejs'
    lock deadlock that hangs writes. RLS still applies (acts as the user). */
 
 interface ProfileBody {
-  nome?:     string
-  headline?: string
-  skills?:   string[]
-  cidade?:   string
-  estado?:   string
-  bio?:      string
-  whatsapp?: string
+  nome?:          string
+  headline?:      string
+  skills?:        string[]
+  cidade?:        string
+  estado?:        string
+  bio?:           string
+  whatsapp?:      string
+  cpf?:           string
+  rg?:            string
+  avatarUrl?:     string
+  portfolioUrls?: string[]
+  audioUrl?:      string
 }
 
 export async function POST(req: NextRequest) {
@@ -32,18 +37,23 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() }
   catch { return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 }) }
 
-  const { nome, headline, skills, cidade, estado, bio, whatsapp } = body
+  const { nome, headline, skills, cidade, estado, bio, whatsapp,
+          cpf, rg, avatarUrl, portfolioUrls, audioUrl } = body
   if (!nome || !skills?.length || !cidade) {
     return NextResponse.json({ ok: false, error: 'dados_incompletos' }, { status: 400 })
   }
 
-  const phone = (whatsapp ?? '').replace(/\D/g, '') || null
+  const phone   = (whatsapp ?? '').replace(/\D/g, '') || null
+  const cpfNum  = (cpf ?? '').replace(/\D/g, '') || null
+  const rgNum   = (rg  ?? '').replace(/[^\dxX]/g, '') || null
+  const portfolio = (portfolioUrls ?? []).filter(u => typeof u === 'string' && u).slice(0, 6)
 
   try {
-    // 1) basic user info (incl. WhatsApp for clients to reach the professional)
+    // 1) basic user info (incl. WhatsApp + foto de perfil)
     await supabase.from('users').update({
       full_name:          nome,
       bio:                bio ?? null,
+      ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       ...(phone ? { phone, phone_country_code: '+55' } : {}),
     }).eq('id', userId)
 
@@ -59,6 +69,8 @@ export async function POST(req: NextRequest) {
       location_state:   estado ?? '',
       location_country: 'BR',
       is_available:     true,
+      ...(portfolio.length ? { portfolio_urls: portfolio } : {}),
+      ...(audioUrl ? { audio_url: audioUrl } : {}),
     }
 
     const { error } = existing
@@ -68,6 +80,18 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error('[create-profile] db error:', error.code, error.message)
       return NextResponse.json({ ok: false, error: error.message ?? 'db_error' }, { status: 400 })
+    }
+
+    // 3) verificação (CPF/RG) — tabela PRIVADA, só o dono lê. Upsert.
+    if (cpfNum || rgNum) {
+      const { error: vErr } = await supabase.from('user_verification').upsert({
+        user_id:    userId,
+        cpf:        cpfNum,
+        rg:         rgNum,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+      if (vErr) console.error('[create-profile] verification error:', vErr.code, vErr.message)
+      // não falha o cadastro inteiro se a verificação não gravar
     }
 
     return NextResponse.json({ ok: true })

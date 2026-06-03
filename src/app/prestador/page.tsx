@@ -3,19 +3,26 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import imageCompression from 'browser-image-compression'
 import { useAuth } from '@/hooks/useAuth'
+import { createPublicClient } from '@/lib/supabase/public'
 import AuthForm from '@/components/auth/AuthForm'
 
-interface Msg { role: 'user' | 'assistant'; content: string }
+interface MsgMedia { kind: 'avatar' | 'portfolio' | 'audio'; url: string; type: 'image' | 'video' | 'audio' }
+interface Msg { role: 'user' | 'assistant'; content: string; media?: MsgMedia }
 interface ProfileData {
-  nome: string; headline: string; skills: string[]; cidade: string; estado: string; bio: string; whatsapp?: string
+  nome: string; headline: string; skills: string[]; cidade: string; estado: string
+  bio: string; whatsapp?: string; cpf?: string; rg?: string
 }
 
 const GREETING = 'Oi! 👋 Que bom te ver por aqui. Me conta: o que você sabe fazer? Pode falar do seu jeito — qual serviço você oferece?'
+const BUCKET = 'demand-media'
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
 
 export default function PrestadorPage() {
   const router = useRouter()
   const { profile: authProfile } = useAuth()
+  const supabase = useRef(createPublicClient()).current
 
   // Optional return target (e.g. coming from "Me candidatar" on a pedido)
   const [next, setNext] = useState('/perfil')
@@ -35,18 +42,26 @@ export default function PrestadorPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
+  // Mídia coletada ao longo da conversa
+  const [avatarUrl,     setAvatarUrl]     = useState<string | null>(null)
+  const [portfolioUrls, setPortfolioUrls] = useState<string[]>([])
+  const [audioUrl,      setAudioUrl]      = useState<string | null>(null)
+  const [uploading,     setUploading]     = useState(false)
+  const [recording,     setRecording]     = useState(false)
+  const avatarInputRef    = useRef<HTMLInputElement>(null)
+  const portfolioInputRef = useRef<HTMLInputElement>(null)
+  const mediaRecorderRef  = useRef<MediaRecorder | null>(null)
+  const audioChunksRef    = useRef<Blob[]>([])
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking, profileData])
 
-  async function send() {
-    const text = input.trim()
-    if (!text || thinking || profileData) return
-    const next = [...messages, { role: 'user' as const, content: text }]
-    setMessages(next); setInput(''); setThinking(true)
-    if (taRef.current) taRef.current.style.height = 'auto'
+  // ── Envia uma lista de mensagens para a IA e anexa a resposta ──
+  async function sendMessages(updated: Msg[]) {
+    setMessages(updated); setThinking(true)
     try {
       const res = await fetch('/api/onboarding-chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: updated.map(m => ({ role: m.role, content: m.content })) }),
       })
       const json = await res.json()
       if (!json.ok) throw new Error(json.error ?? 'erro')
@@ -59,6 +74,92 @@ export default function PrestadorPage() {
     }
   }
 
+  async function send() {
+    const text = input.trim()
+    if (!text || thinking || profileData || uploading) return
+    setInput('')
+    if (taRef.current) taRef.current.style.height = 'auto'
+    await sendMessages([...messages, { role: 'user', content: text }])
+  }
+
+  // ── Upload genérico para o bucket público ──
+  async function uploadToBucket(file: Blob, ext: string): Promise<string | null> {
+    const path = `prestador/${Date.now()}-${uuid().slice(0, 6)}.${ext}`
+    const { data, error } = await supabase.storage.from(BUCKET).upload(path, file, { cacheControl: '3600', upsert: false })
+    if (error) { console.error('[prestador] upload', error); return null }
+    const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(data.path)
+    return publicUrl
+  }
+
+  // ── Foto de perfil ──
+  async function handleAvatar(files: FileList) {
+    const file = files[0]
+    if (!file || thinking || uploading) return
+    setUploading(true)
+    try {
+      let up: Blob = file
+      if (file.type.startsWith('image/')) up = await imageCompression(file, { maxSizeMB: 0.7, maxWidthOrHeight: 1024, useWebWorker: true })
+      const url = await uploadToBucket(up, 'jpg')
+      if (url) {
+        setAvatarUrl(url)
+        await sendMessages([...messages, { role: 'user', content: '[anexei: minha foto de perfil]', media: { kind: 'avatar', url, type: 'image' } }])
+      }
+    } finally { setUploading(false) }
+  }
+
+  // ── Portfólio (fotos / vídeos) ──
+  async function handlePortfolio(files: FileList) {
+    if (thinking || uploading) return
+    const toAdd = Array.from(files).slice(0, 3)
+    setUploading(true)
+    const newMsgs: Msg[] = []
+    const newUrls: string[] = []
+    try {
+      for (const file of toAdd) {
+        const isVideo = file.type.startsWith('video')
+        let up: Blob = file
+        if (!isVideo) up = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true })
+        const ext = isVideo ? (file.name.split('.').pop() ?? 'mp4') : 'jpg'
+        const url = await uploadToBucket(up, ext)
+        if (url) {
+          newUrls.push(url)
+          newMsgs.push({ role: 'user', content: `[anexei: ${isVideo ? 'vídeo' : 'foto'} de portfólio]`, media: { kind: 'portfolio', url, type: isVideo ? 'video' : 'image' } })
+        }
+      }
+    } finally { setUploading(false) }
+    if (newUrls.length) {
+      setPortfolioUrls(prev => [...prev, ...newUrls])
+      await sendMessages([...messages, ...newMsgs])
+    }
+  }
+
+  // ── Áudio de apresentação ──
+  async function toggleRecording() {
+    if (thinking) return
+    if (recording) { mediaRecorderRef.current?.stop(); return }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      audioChunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size) audioChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setRecording(false)
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        if (blob.size < 800) return // gravação vazia
+        setUploading(true)
+        try {
+          const url = await uploadToBucket(blob, 'webm')
+          if (url) {
+            setAudioUrl(url)
+            await sendMessages([...messages, { role: 'user', content: '[anexei: áudio de apresentação]', media: { kind: 'audio', url, type: 'audio' } }])
+          }
+        } finally { setUploading(false) }
+      }
+      mr.start(); mediaRecorderRef.current = mr; setRecording(true)
+    } catch { /* microfone negado */ }
+  }
+
   async function createProfile() {
     if (!profileData) return
     if (!authProfile?.id) { pendingCreate.current = true; setShowAuth(true); return }
@@ -68,7 +169,7 @@ export default function PrestadorPage() {
       // session-client lock deadlock that would hang the write forever.
       const res  = await fetch('/api/create-profile', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileData),
+        body: JSON.stringify({ ...profileData, avatarUrl, portfolioUrls, audioUrl }),
       })
       const json = await res.json()
       if (!json.ok) throw new Error(json.error ?? 'erro')
@@ -91,6 +192,8 @@ export default function PrestadorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authProfile, profileData])
 
+  const busy = thinking || uploading
+
   return (
     <div style={{ height: 'calc(100dvh - 52px)', background: '#000', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif" }}>
       {/* Header */}
@@ -104,10 +207,28 @@ export default function PrestadorPage() {
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
             <div style={{
-              maxWidth: '82%', padding: '11px 15px', borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+              maxWidth: '82%', padding: m.media ? '8px' : '11px 15px', borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
               background: m.role === 'user' ? '#fff' : '#161616', color: m.role === 'user' ? '#000' : '#eee',
               fontSize: 14.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            }}>{m.content}</div>
+            }}>
+              {m.media ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {m.media.type === 'image' && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.media.url} alt="" style={{ width: m.media.kind === 'avatar' ? 120 : 160, height: m.media.kind === 'avatar' ? 120 : 120, objectFit: 'cover', borderRadius: 10 }} />
+                  )}
+                  {m.media.type === 'video' && (
+                    <video src={m.media.url} controls style={{ width: 200, borderRadius: 10 }} />
+                  )}
+                  {m.media.type === 'audio' && (
+                    <audio src={m.media.url} controls style={{ width: 220 }} />
+                  )}
+                  <span style={{ fontSize: 11, color: m.role === 'user' ? '#888' : '#777', paddingLeft: 4 }}>
+                    {m.media.kind === 'avatar' ? '📷 Foto de perfil' : m.media.kind === 'audio' ? '🎤 Áudio' : '🖼️ Portfólio'}
+                  </span>
+                </div>
+              ) : m.content}
+            </div>
           </div>
         ))}
 
@@ -123,15 +244,45 @@ export default function PrestadorPage() {
         {profileData && (
           <div style={{ background: '#0a1f14', border: '1px solid #1a4a2e', borderRadius: 14, padding: '20px', marginTop: 8 }}>
             <p style={{ fontSize: 11, color: '#22c55e', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 12px' }}>✓ Seu perfil está pronto</p>
-            <p style={{ fontSize: 17, fontWeight: 800, color: '#fff', margin: '0 0 2px' }}>{profileData.nome}</p>
-            <p style={{ fontSize: 13, color: '#00d4ff', margin: '0 0 10px' }}>{profileData.headline}</p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              {avatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={avatarUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '1px solid #1a4a2e', flexShrink: 0 }} />
+                : <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#111', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>👤</div>}
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 17, fontWeight: 800, color: '#fff', margin: '0 0 2px' }}>{profileData.nome}</p>
+                <p style={{ fontSize: 13, color: '#00d4ff', margin: 0 }}>{profileData.headline}</p>
+              </div>
+            </div>
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {profileData.skills.map((s, i) => (
                 <span key={i} style={{ fontSize: 12, color: '#9ca3af', background: '#111', border: '1px solid #222', borderRadius: 99, padding: '3px 10px' }}>{s}</span>
               ))}
             </div>
             <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: '0 0 6px' }}>{profileData.bio}</p>
-            <p style={{ fontSize: 12, color: '#555', margin: '0 0 16px' }}>📍 {profileData.cidade}{profileData.estado ? `, ${profileData.estado}` : ''}</p>
+            <p style={{ fontSize: 12, color: '#555', margin: '0 0 10px' }}>📍 {profileData.cidade}{profileData.estado ? `, ${profileData.estado}` : ''}</p>
+
+            {/* Portfólio */}
+            {portfolioUrls.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                {portfolioUrls.map((u, i) => (
+                  /\.(mp4|mov|webm)$/i.test(u)
+                    ? <video key={i} src={u} style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 8, border: '1px solid #222' }} />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    : <img key={i} src={u} alt="" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 8, border: '1px solid #222' }} />
+                ))}
+              </div>
+            )}
+            {audioUrl && <audio src={audioUrl} controls style={{ width: '100%', marginBottom: 10 }} />}
+
+            {/* Selo de verificação (CPF fica privado) */}
+            {profileData.cpf && (
+              <p style={{ fontSize: 12, color: '#22c55e', margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                🔒 CPF recebido e guardado em sigilo (não aparece para ninguém).
+              </p>
+            )}
 
             {createErr && <p style={{ fontSize: 12, color: '#ef4444', margin: '0 0 10px' }}>{createErr}</p>}
 
@@ -150,25 +301,49 @@ export default function PrestadorPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
+      {/* Input + anexos */}
       {!profileData && (
-        <div style={{ flexShrink: 0, borderTop: '1px solid #111', padding: '12px 16px 20px' }}>
-          <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-            <div style={{ flex: 1, background: '#111', border: '1px solid #1e1e1e', borderRadius: 14, padding: '10px 14px' }}>
-              <textarea ref={taRef} value={input} rows={1}
-                onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                placeholder="Escreva sua resposta…"
-                style={{ width: '100%', background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 14.5, lineHeight: 1.5, resize: 'none', fontFamily: 'inherit', overflow: 'hidden' }} />
+        <div style={{ flexShrink: 0, borderTop: '1px solid #111', padding: '10px 16px 18px' }}>
+          <div style={{ maxWidth: 640, margin: '0 auto' }}>
+
+            {/* Barra de anexos */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <AttachBtn label="Foto de perfil" icon="📷" disabled={busy} active={!!avatarUrl}
+                onClick={() => avatarInputRef.current?.click()} />
+              <AttachBtn label="Portfólio" icon="🖼️" disabled={busy} active={portfolioUrls.length > 0}
+                onClick={() => portfolioInputRef.current?.click()} />
+              <AttachBtn label={recording ? 'Parar gravação' : 'Gravar áudio'} icon={recording ? '⏹️' : '🎤'}
+                disabled={thinking} active={!!audioUrl} recording={recording} onClick={toggleRecording} />
+              {uploading && <span style={{ alignSelf: 'center', fontSize: 12, color: '#00d4ff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 12, height: 12, border: '2px solid rgba(0,212,255,0.3)', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} /> enviando…
+              </span>}
+              {recording && <span style={{ alignSelf: 'center', fontSize: 12, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#ef4444', animation: 'live-pulse 1.2s infinite' }} /> gravando…
+              </span>}
             </div>
-            <button onClick={send} disabled={!input.trim() || thinking}
-              style={{ width: 44, height: 44, borderRadius: 12, border: 'none', flexShrink: 0, background: input.trim() ? '#fff' : '#111', cursor: input.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={input.trim() ? '#000' : '#444'} strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
+
+            <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => e.target.files && handleAvatar(e.target.files)} />
+            <input ref={portfolioInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,.webm" multiple style={{ display: 'none' }}
+              onChange={e => e.target.files && handlePortfolio(e.target.files)} />
+
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+              <div style={{ flex: 1, background: '#111', border: '1px solid #1e1e1e', borderRadius: 14, padding: '10px 14px' }}>
+                <textarea ref={taRef} value={input} rows={1}
+                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                  placeholder="Escreva sua resposta…"
+                  style={{ width: '100%', background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 14.5, lineHeight: 1.5, resize: 'none', fontFamily: 'inherit', overflow: 'hidden' }} />
+              </div>
+              <button onClick={send} disabled={!input.trim() || busy}
+                style={{ width: 44, height: 44, borderRadius: 12, border: 'none', flexShrink: 0, background: input.trim() && !busy ? '#fff' : '#111', cursor: input.trim() && !busy ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={input.trim() && !busy ? '#000' : '#444'} strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+            <p style={{ textAlign: 'center', fontSize: 11, color: '#444', marginTop: 8 }}>
+              Procurando contratar? <Link href="/" style={{ color: '#666' }}>Publicar um pedido →</Link>
+            </p>
           </div>
-          <p style={{ textAlign: 'center', fontSize: 11, color: '#444', marginTop: 8 }}>
-            Procurando contratar? <Link href="/" style={{ color: '#666' }}>Publicar um pedido →</Link>
-          </p>
         </div>
       )}
 
@@ -187,9 +362,29 @@ export default function PrestadorPage() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes bounce { 0%,80%,100% { transform: translateY(0); opacity:0.4 } 40% { transform: translateY(-5px); opacity:1 } }
+        @keyframes live-pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
         textarea::placeholder { color: #555; }
         ::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
+  )
+}
+
+/* Botão de anexo da barra do chat */
+function AttachBtn({ label, icon, onClick, disabled, active, recording }: {
+  label: string; icon: string; onClick: () => void; disabled?: boolean; active?: boolean; recording?: boolean
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
+        background: recording ? 'rgba(239,68,68,0.12)' : active ? 'rgba(34,197,94,0.10)' : '#111',
+        border: `1px solid ${recording ? 'rgba(239,68,68,0.4)' : active ? 'rgba(34,197,94,0.35)' : '#1e1e1e'}`,
+        borderRadius: 10, padding: '7px 11px', fontSize: 12.5, fontWeight: 600,
+        color: recording ? '#ef4444' : active ? '#22c55e' : '#888',
+        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
+      }}>
+      <span>{icon}</span>{label}{active && !recording && <span style={{ color: '#22c55e' }}>✓</span>}
+    </button>
   )
 }

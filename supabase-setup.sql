@@ -117,6 +117,43 @@ create policy "users_update_own" on users for update
   with check (auth.uid() = auth_id);
 
 -- ───────────────────────────────────────────────────────────
+--  ÁUDIO de apresentação no perfil profissional
+-- ───────────────────────────────────────────────────────────
+alter table professional_profiles add column if not exists audio_url text;
+
+-- ───────────────────────────────────────────────────────────
+--  VERIFICAÇÃO (CPF / RG) — DADO SENSÍVEL E PRIVADO.
+--  Tabela separada: SOMENTE o próprio dono lê/escreve. Ninguém mais —
+--  nem o contratante, nem o público — enxerga CPF/RG. Não fica no
+--  "users" justamente para o dono do pedido NÃO ler o CPF do candidato.
+-- ───────────────────────────────────────────────────────────
+create table if not exists user_verification (
+  user_id    uuid primary key references users(id) on delete cascade,
+  cpf        text,
+  rg         text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table user_verification enable row level security;
+
+drop policy if exists "uv_select_own" on user_verification;
+create policy "uv_select_own" on user_verification for select to authenticated
+  using (auth.uid() = (select auth_id from users where id = user_id));
+
+drop policy if exists "uv_insert_own" on user_verification;
+create policy "uv_insert_own" on user_verification for insert to authenticated
+  with check (auth.uid() = (select auth_id from users where id = user_id));
+
+drop policy if exists "uv_update_own" on user_verification;
+create policy "uv_update_own" on user_verification for update to authenticated
+  using (auth.uid() = (select auth_id from users where id = user_id))
+  with check (auth.uid() = (select auth_id from users where id = user_id));
+
+-- garante que anon/authenticated não tenham GRANT amplo nessa tabela
+revoke all on public.user_verification from anon;
+
+-- ───────────────────────────────────────────────────────────
 --  REALTIME — habilita o feed "ao vivo" (idempotente, não dá erro se já adicionado)
 -- ───────────────────────────────────────────────────────────
 do $$

@@ -131,15 +131,17 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
   function removeMedia(id: string) { setMedias(prev => prev.filter(m => m.id !== id)) }
 
-  /* ── IA (Claude) — melhora o texto do pedido ── */
+  /* ── IA (Claude) — melhora o texto do pedido (automático + editável) ── */
   const [aiLoading,    setAiLoading]    = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState('')
   const [aiError,      setAiError]      = useState('')
+  const suggestionEditedRef = useRef(false)               // true depois que a pessoa edita o texto da IA
+  const lastRefinedRef      = useRef('')                  // último 'query' já refinado (evita repetir)
+  const aiDebounceRef       = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  async function refineWithAI() {
-    const text = query.trim()
-    if (text.length < 6 || aiLoading) return
-    setAiLoading(true); setAiError(''); setAiSuggestion('')
+  async function refineWithAI(text: string) {
+    if (text.length < 10 || aiLoading) return
+    setAiLoading(true); setAiError('')
     try {
       const res  = await fetch('/api/refine-demand', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -148,18 +150,37 @@ export default function SearchBar({ onSearch, loading }: Props) {
       const json = await res.json()
       if (!res.ok || !json.ok) throw new Error(json.error ?? 'erro')
       setAiSuggestion(json.refined as string)
-    } catch { setAiError('Não consegui melhorar agora. Tente de novo.') }
+      suggestionEditedRef.current = false
+      lastRefinedRef.current = text
+    } catch { setAiError('Não consegui melhorar agora. Toque em "Gerar de novo".') }
     finally { setAiLoading(false) }
   }
 
+  // Gera a sugestão SOZINHA enquanto a pessoa digita (sem precisar clicar).
+  // Para de regerar assim que a pessoa edita o texto da IA, pra não apagar o que ela escreveu.
+  useEffect(() => {
+    const text = query.trim()
+    if (suggestionEditedRef.current) return          // pessoa já está editando — não sobrescreve
+    if (text.length < 12)            return
+    if (text === lastRefinedRef.current) return
+    if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current)
+    aiDebounceRef.current = setTimeout(() => { refineWithAI(text) }, 1100)
+    return () => { if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query])
+
+  // Texto final publicado: a versão editada da IA (se houver) ou o texto digitado.
+  const finalText = (aiSuggestion.trim() || query.trim())
+  const hasPlaceholder = /(^|\s)X(\s|$|,|\.|;)/.test(aiSuggestion)
+
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!query.trim()) return
+    if (!finalText) return
     const urls = medias.filter(m => m.url).map(m => m.url as string)
-    onSearch(query.trim(), location, urls)
+    onSearch(finalText, location, urls)
   }
 
-  const canSubmit = query.trim().length > 0 && !loading && medias.every(m => !m.uploading)
+  const canSubmit = finalText.length > 0 && !loading && medias.every(m => !m.uploading)
 
   return (
     <form onSubmit={handleSubmit} style={{ width: '100%', position: 'relative' }}>
@@ -259,31 +280,36 @@ export default function SearchBar({ onSearch, loading }: Props) {
         )}
       </div>
 
-      {/* ── Melhorar com IA ── */}
-      {query.trim().length >= 6 && (
-        <div style={{ marginTop: 12 }}>
-          {!aiSuggestion && (
-            <button type="button" onClick={refineWithAI} disabled={aiLoading}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.25)', borderRadius: 8, padding: '7px 12px', color: '#00d4ff', fontSize: 13, fontWeight: 600, cursor: aiLoading ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-              {aiLoading
-                ? <span style={{ width: 13, height: 13, border: '2px solid rgba(0,212,255,0.3)', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
-                : <span>✨</span>}
-              {aiLoading ? 'Melhorando…' : 'Melhorar pedido com IA'}
+      {/* ── Sugestão da IA — aparece sozinha e é editável ── */}
+      {(query.trim().length >= 12 || aiSuggestion || aiLoading) && (
+        <div style={{ background: '#0b1a1f', border: '1px solid rgba(0,212,255,0.25)', borderRadius: 10, padding: '14px 16px', marginTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+            <span style={{ fontSize: 11, color: '#00d4ff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 7 }}>
+              ✨ Descrição sugerida pela IA
+              {aiLoading && <span style={{ width: 12, height: 12, border: '2px solid rgba(0,212,255,0.3)', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />}
+            </span>
+            <button type="button" onClick={() => refineWithAI(query.trim())} disabled={aiLoading || query.trim().length < 10}
+              title="Gerar uma nova sugestão a partir do que você digitou"
+              style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid #234', borderRadius: 7, padding: '5px 10px', color: query.trim().length < 10 ? '#345' : '#00d4ff', fontSize: 12, fontWeight: 600, cursor: aiLoading || query.trim().length < 10 ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+              ↻ Gerar de novo
             </button>
-          )}
-          {aiError && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>{aiError}</p>}
-          {aiSuggestion && (
-            <div style={{ background: '#0b1a1f', border: '1px solid rgba(0,212,255,0.25)', borderRadius: 10, padding: '14px 16px', marginTop: 4 }}>
-              <p style={{ fontSize: 11, color: '#00d4ff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>✨ Sugestão da IA</p>
-              <p style={{ fontSize: 14, color: '#fff', lineHeight: 1.6, margin: '0 0 14px' }}>{aiSuggestion}</p>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => { setQuery(aiSuggestion); setAiSuggestion(''); inputRef.current?.focus() }}
-                  style={{ height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: '#fff', color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Usar este texto</button>
-                <button type="button" onClick={() => setAiSuggestion('')}
-                  style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #333', background: 'none', color: '#888', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Manter o meu</button>
-              </div>
-            </div>
-          )}
+          </div>
+
+          <textarea
+            value={aiSuggestion}
+            onChange={e => { setAiSuggestion(e.target.value); suggestionEditedRef.current = true; e.target.style.height = 'auto'; e.target.style.height = Math.max(e.target.scrollHeight, 80) + 'px' }}
+            placeholder={aiLoading ? 'Gerando uma descrição mais completa…' : 'A IA vai escrever um texto aqui. Você pode editar à vontade.'}
+            rows={4}
+            style={{ width: '100%', minHeight: 80, background: '#06141a', border: '1px solid rgba(0,212,255,0.18)', borderRadius: 8, color: '#fff', fontSize: 14, lineHeight: 1.6, padding: '11px 13px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          />
+
+          <p style={{ fontSize: 12, color: hasPlaceholder ? '#fbbf24' : '#5b7', marginTop: 8, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <span style={{ flexShrink: 0 }}>{hasPlaceholder ? '✏️' : '✓'}</span>
+            {hasPlaceholder
+              ? <span>Troque cada <strong style={{ color: '#fbbf24' }}>X</strong> pelo número real (ex.: “X quartos” → “3 quartos”). Esse é o texto que será publicado.</span>
+              : <span>Esse é o texto que será publicado. Edite à vontade antes de enviar.</span>}
+          </p>
+          {aiError && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{aiError}</p>}
         </div>
       )}
 

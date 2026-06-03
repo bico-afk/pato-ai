@@ -10,12 +10,13 @@ CLARA, COMPLETA e específica, que faça um profissional entender na hora e quer
 Como melhorar:
 - Deixe o serviço explícito e específico: o que precisa, onde (qual cômodo/parte) e o problema ou objetivo.
 - Use o que a pessoa disse, no tom dela, mas organize e complete o que está implícito — SEM inventar
-  fatos que ela não deu (datas, preços, endereços, marcas, medidas exatas, nomes).
+  fatos que ela não deu (datas, preços, endereços, marcas, medidas exatas, nomes, quantidades).
+- ONDE um número, quantidade, medida, área ou data ajudaria o profissional a orçar mas a pessoa NÃO
+  informou, escreva a letra "X" como espaço reservado para ela mesma preencher depois. Exemplos:
+  "casa com X cômodos, sendo X quartos e X banheiros", "mudança de um apartamento de X cômodos",
+  "pintura de aproximadamente X m²", "evento para X convidados no dia X". Use "X" só quando o dado
+  realmente faria diferença no orçamento — não encha o texto de X.
 - 2 a 4 frases. Natural e direto, em português do Brasil.
-- Identifique o TIPO de serviço e, ao final, acrescente UMA frase curta sugerindo o detalhe que mais
-  ajudaria o profissional a orçar ESSE tipo de serviço (ex.: reforma → "Se possível, informe o tamanho
-  do ambiente e se já tem o material"; frete → "Se possível, informe a distância e o que será
-  transportado"; evento → "Se possível, informe a data e o número de convidados").
 - Sem saudações, sem aspas, sem listas com marcadores, sem emojis.
 - Responda APENAS com o pedido reescrito — nada além disso.`
 
