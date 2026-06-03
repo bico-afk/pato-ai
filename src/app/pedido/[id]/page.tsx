@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createPublicClient } from '@/lib/supabase/public'
 import { getAnonToken } from '@/lib/anonymous'
+import { useAuth } from '@/hooks/useAuth'
 import AuthForm from '@/components/auth/AuthForm'
 import type { RealtimePostgresChangesPayload, REALTIME_SUBSCRIBE_STATES, RealtimeChannel } from '@supabase/supabase-js'
 
@@ -70,6 +71,7 @@ export default function PedidoPage() {
   const supabase    = supabaseRef.current
   const pubRef      = useRef(createPublicClient())    // anon client — for public reads (never hangs)
   const pub         = pubRef.current
+  const { profile } = useAuth()                       // reliable logged-in identity (no getSession hang)
 
   const [demand,        setDemand]        = useState<Demand | null>(null)
   const [applications,  setApplications]  = useState<Application[]>([])
@@ -102,52 +104,11 @@ export default function PedidoPage() {
 
       // Anonymous ownership needs no auth (token from localStorage).
       const anonTok = getAnonToken()
-      let owned = !!(demand.anonymous_token && demand.anonymous_token === anonTok)
-      setIsOwner(owned)
+      const owned = !!(demand.anonymous_token && demand.anonymous_token === anonTok)
+      if (owned) setIsOwner(true)
       setLoading(false) // page is ready to render NOW
-
-      // 2) Auth-dependent parts — guarded so a hanging session can't freeze the page.
-      let dbUserId: string | null = null
-      try {
-        const res = await withTimeout(supabase.auth.getSession(), 6_000)
-        const session = (res as { data?: { session?: { user?: { id: string } } } })?.data?.session
-        if (session?.user) {
-          const { data: userRow } = await withTimeout(
-            supabase.from('users').select('id').eq('auth_id', session.user.id).maybeSingle(), 6_000,
-          ) as { data: { id: string } | null }
-          dbUserId = userRow?.id ?? null
-          setAuthUserId(dbUserId)
-          if (dbUserId && dbUserId === demand.user_id) { owned = true; setIsOwner(true) }
-        }
-      } catch (e) {
-        console.warn('[pedido] auth/identidade indisponivel:', e)
-      }
-
-      // Enriched applications if owner
-      if (owned) {
-        try {
-          const { data: apps } = await withTimeout(supabase
-            .from('applications')
-            .select(`
-              id, professional_id, message, status, created_at,
-              users ( username, full_name, avatar_url ),
-              professional_profiles ( headline, avg_rating, total_jobs_completed )
-            `)
-            .eq('demand_id', id)
-            .order('created_at', { ascending: true }), 6_000) as { data: Application[] | null }
-          setApplications((apps ?? []) as unknown as Application[])
-        } catch { /* degrade silently */ }
-      }
-
-      // Already applied?
-      if (dbUserId) {
-        try {
-          const { data: mine } = await withTimeout(supabase
-            .from('applications')
-            .select('id').eq('demand_id', id).eq('professional_id', dbUserId).maybeSingle(), 6_000) as { data: { id: string } | null }
-          if (mine) setApplied(true)
-        } catch { /* ignore */ }
-      }
+      // (Logged-in ownership + applications are resolved in a separate effect
+      //  driven by useAuth — see below — which is reliable and never hangs.)
 
       // Realtime — candidate_count on demand (public client, never hangs)
       channelRef.current = pub
@@ -170,6 +131,49 @@ export default function PedidoPage() {
     return () => { if (channelRef.current) pub.removeChannel(channelRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router])
+
+  /* ── Auth-dependent: ownership + applications, driven by useAuth ──
+     useAuth resolves the logged-in user reliably (same source as the navbar),
+     so ownership of a logged-in post is detected without a fragile getSession. */
+  useEffect(() => {
+    if (!demand) return
+    const myId = profile?.id ?? null
+    if (myId) setAuthUserId(myId)
+
+    const ownedByAccount = !!(myId && demand.user_id && myId === demand.user_id)
+    const ownedByAnon    = !!(demand.anonymous_token && demand.anonymous_token === getAnonToken())
+    const owner = ownedByAccount || ownedByAnon
+    if (owner) setIsOwner(true)
+
+    if (owner) {
+      // Owner → load candidaturas
+      ;(async () => {
+        try {
+          const { data: apps } = await withTimeout(supabase
+            .from('applications')
+            .select(`
+              id, professional_id, message, status, created_at,
+              users ( username, full_name, avatar_url ),
+              professional_profiles ( headline, avg_rating, total_jobs_completed )
+            `)
+            .eq('demand_id', id)
+            .order('created_at', { ascending: true }), 8_000) as { data: Application[] | null }
+          setApplications((apps ?? []) as unknown as Application[])
+        } catch { /* degrade silently */ }
+      })()
+    } else if (myId) {
+      // Non-owner logged in → did I already apply?
+      ;(async () => {
+        try {
+          const { data: mine } = await withTimeout(supabase
+            .from('applications')
+            .select('id').eq('demand_id', id).eq('professional_id', myId).maybeSingle(), 8_000) as { data: { id: string } | null }
+          if (mine) setApplied(true)
+        } catch { /* ignore */ }
+      })()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, demand])
 
   /* ── Apply ── */
   async function handleApply() {
@@ -231,6 +235,24 @@ export default function PedidoPage() {
   async function handleDecline(appId: string) {
     await supabase.from('applications').update({ status: 'rejected' }).eq('id', appId)
     setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'rejected' } : a))
+  }
+
+  /* ── Encerrar pedido (dono) — some do feed (status != open) ── */
+  const [closing, setClosing] = useState(false)
+  async function closeDemand() {
+    if (closing) return
+    setClosing(true)
+    try {
+      const { error } = await withTimeout(
+        supabase.from('demands').update({ status: 'closed' }).eq('id', id), 10_000,
+      ) as { error: { message?: string } | null }
+      if (error) throw error
+      setDemand(prev => prev ? { ...prev, status: 'closed' } : prev)
+    } catch (e) {
+      console.error('[pedido] close error:', e)
+    } finally {
+      setClosing(false)
+    }
   }
 
   /* ── Loading ── */
@@ -347,14 +369,30 @@ export default function PedidoPage() {
         {/* ── APPLICATIONS (owner) ── */}
         {isOwner && (
           <div style={{ marginTop: 8 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 16 }}>
-              Candidaturas
-              {applications.length > 0 && (
-                <span style={{ marginLeft: 8, fontSize: 13, color: '#00d4ff', fontWeight: 700, background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.15)', borderRadius: 99, padding: '2px 10px' }}>
-                  {applications.length}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: 0 }}>
+                Candidaturas
+                {applications.length > 0 && (
+                  <span style={{ marginLeft: 8, fontSize: 13, color: '#00d4ff', fontWeight: 700, background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.15)', borderRadius: 99, padding: '2px 10px' }}>
+                    {applications.length}
+                  </span>
+                )}
+              </h2>
+
+              {demand.status === 'open' ? (
+                <button onClick={closeDemand} disabled={closing}
+                  style={{ height: 38, padding: '0 16px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.08)', color: '#22c55e', fontSize: 13, fontWeight: 800, cursor: closing ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 7 }}>
+                  {closing
+                    ? <span style={{ width: 13, height: 13, border: '2px solid rgba(34,197,94,0.3)', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
+                    : '✓'}
+                  {closing ? 'Encerrando…' : 'Marcar como resolvido'}
+                </button>
+              ) : (
+                <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 700, background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.2)', borderRadius: 99, padding: '5px 12px' }}>
+                  Pedido encerrado
                 </span>
               )}
-            </h2>
+            </div>
 
             {applications.length === 0 && demand.status === 'open' && (
               <div style={{ textAlign: 'center', padding: '32px', background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 12 }}>

@@ -41,6 +41,13 @@ create policy "demands_select_public" on demands for select
   to anon, authenticated
   using (true);
 
+-- demands: o dono (logado) pode atualizar o próprio pedido — encerrar, editar status
+drop policy if exists "demands_update_owner" on demands;
+create policy "demands_update_owner" on demands for update
+  to authenticated
+  using (auth.uid() = (select auth_id from users where id = user_id))
+  with check (auth.uid() = (select auth_id from users where id = user_id));
+
 -- users: leitura pública de perfil básico (nome/avatar no feed e cards)
 drop policy if exists "users_select_public" on users;
 create policy "users_select_public" on users for select

@@ -44,11 +44,12 @@ export default function SearchBar({ onSearch, loading }: Props) {
   const [geoLoading,  setGeoLoading]  = useState(false)
   const sessionTokenRef = useRef(uuid())
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typedRef = useRef(true) // false when addr changed from a selection / GPS (not typing)
 
   // Fetch suggestions as the user types (debounced)
   useEffect(() => {
-    if (location && addr === location.formatted) return // already selected
-    if (addr.trim().length < 3) { setSuggestions([]); return }
+    if (!typedRef.current) return // change came from selecting a suggestion — don't re-open
+    if (addr.trim().length < 3) { setSuggestions([]); setShowDrop(false); return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
@@ -58,13 +59,14 @@ export default function SearchBar({ onSearch, loading }: Props) {
         })
         const json = await res.json()
         setSuggestions(json.suggestions ?? [])
-        setShowDrop(true)
+        setShowDrop((json.suggestions ?? []).length > 0)
       } catch { setSuggestions([]) }
     }, 280)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [addr, location])
+  }, [addr])
 
   async function selectSuggestion(s: Suggestion) {
+    typedRef.current = false
     setShowDrop(false); setSuggestions([]); setGeoLoading(true)
     setAddr(`${s.main}${s.sub ? ', ' + s.sub : ''}`)
     try {
@@ -83,7 +85,8 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
   async function useMyLocation() {
     if (!navigator.geolocation) return
-    setGeoLoading(true); setShowDrop(false)
+    typedRef.current = false
+    setGeoLoading(true); setShowDrop(false); setSuggestions([])
     navigator.geolocation.getCurrentPosition(async ({ coords }) => {
       try {
         const res = await fetch('/api/geo/reverse', {
@@ -172,7 +175,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
           <input
             type="text"
             value={addr}
-            onChange={e => { setAddr(e.target.value); setLocation(null) }}
+            onChange={e => { typedRef.current = true; setAddr(e.target.value); setLocation(null) }}
             onFocus={() => suggestions.length && setShowDrop(true)}
             onBlur={() => setTimeout(() => setShowDrop(false), 150)}
             placeholder="Seu endereço"
