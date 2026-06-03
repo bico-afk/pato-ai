@@ -77,7 +77,7 @@ export default function ConversasPage() {
 
     const [usersRes, demandsRes, msgsRes] = await Promise.all([
       otherIds.length > 0
-        ? supabase.from('users').select('id, username, full_name, avatar_url').in('id', otherIds)
+        ? supabase.from('user_public').select('id, username, full_name, avatar_url').in('id', otherIds)
         : Promise.resolve({ data: [] }),
       demandIds.length > 0
         ? supabase.from('demands').select('id, description').in('id', demandIds)

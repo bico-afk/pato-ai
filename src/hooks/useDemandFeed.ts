@@ -98,7 +98,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
       if (userIds.length) {
         try {
           const { data: us } = await withTimeout(
-            supabase.from('users').select('id, username').in('id', userIds),
+            supabase.from('user_public').select('id, username').in('id', userIds),
             8_000,
           ) as { data: { id: string; username: string }[] | null }
           if (us) nameMap = Object.fromEntries(us.map(u => [u.id, u.username]))
@@ -141,7 +141,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
           const userId = raw.user_id as string | null
           if (userId) {
             try {
-              const { data } = await supabase.from('users').select('username').eq('id', userId).single()
+              const { data } = await supabase.from('user_public').select('username').eq('id', userId).single()
               usersObj = data ? { username: data.username as string } : null
             } catch { /* ignore */ }
           }

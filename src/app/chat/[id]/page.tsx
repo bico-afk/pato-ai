@@ -148,7 +148,7 @@ export default function ChatPage() {
       // Get other user info
       if (otherId) {
         const { data: otherRow } = await supabase
-          .from('users')
+          .from('user_public')
           .select('id, username, full_name, avatar_url')
           .eq('id', otherId)
           .single()

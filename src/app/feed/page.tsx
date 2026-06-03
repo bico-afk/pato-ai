@@ -110,7 +110,7 @@ export default function FeedPage() {
         const userIds = [...new Set(rows.map(r => r.user_id as string | null).filter(Boolean))] as string[]
         let nameMap: Record<string, string> = {}
         if (userIds.length) {
-          const { data: us } = await supabase.from('users').select('id, username').in('id', userIds)
+          const { data: us } = await supabase.from('user_public').select('id, username').in('id', userIds)
           if (us) nameMap = Object.fromEntries((us as { id: string; username: string }[]).map(u => [u.id, u.username]))
         }
 

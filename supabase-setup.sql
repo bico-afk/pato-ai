@@ -48,11 +48,39 @@ create policy "demands_update_owner" on demands for update
   using (auth.uid() = (select auth_id from users where id = user_id))
   with check (auth.uid() = (select auth_id from users where id = user_id));
 
--- users: leitura pública de perfil básico (nome/avatar no feed e cards)
+-- ───────────────────────────────────────────────────────────
+--  SEGURANÇA: a tabela "users" guarda EMAIL e TELEFONE.
+--  NUNCA exponha a tabela inteira publicamente. Use uma VIEW só
+--  com campos seguros para exibir nome/avatar no feed e cards.
+-- ───────────────────────────────────────────────────────────
+alter table users enable row level security;
+
+-- view pública: SOMENTE campos seguros (sem email, sem telefone)
+create or replace view public.user_public as
+  select id, username, full_name, avatar_url from public.users;
+grant select on public.user_public to anon, authenticated;
+
+-- remove o vazamento antigo (lia email/telefone de todos)
 drop policy if exists "users_select_public" on users;
-create policy "users_select_public" on users for select
-  to anon, authenticated
-  using (true);
+
+-- users: cada um lê apenas a PRÓPRIA linha
+drop policy if exists "users_select_own" on users;
+create policy "users_select_own" on users for select to authenticated
+  using (auth.uid() = auth_id);
+
+-- users: o dono de um pedido pode ler os dados (incl. telefone) de quem se candidatou a ELE
+drop policy if exists "users_select_demand_owner" on users;
+create policy "users_select_demand_owner" on users for select to authenticated
+  using (exists (
+    select 1 from applications a join demands d on d.id = a.demand_id
+    where a.professional_id = users.id
+      and d.user_id = (select u2.id from users u2 where u2.auth_id = auth.uid())
+  ));
+
+-- users: criar a própria linha no cadastro (callback de login)
+drop policy if exists "users_insert_own" on users;
+create policy "users_insert_own" on users for insert to authenticated
+  with check (auth.uid() = auth_id);
 
 -- professional_profiles: leitura pública (busca de profissionais)
 drop policy if exists "profiles_select_public" on professional_profiles;
