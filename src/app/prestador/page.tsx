@@ -17,6 +17,13 @@ export default function PrestadorPage() {
   const router = useRouter()
   const { profile: authProfile } = useAuth()
 
+  // Optional return target (e.g. coming from "Me candidatar" on a pedido)
+  const [next, setNext] = useState('/perfil')
+  useEffect(() => {
+    const n = new URLSearchParams(window.location.search).get('next')
+    if (n) setNext(n)
+  }, [])
+
   const [messages, setMessages] = useState<Msg[]>([{ role: 'assistant', content: GREETING }])
   const [input,    setInput]    = useState('')
   const [thinking, setThinking] = useState(false)
@@ -65,7 +72,7 @@ export default function PrestadorPage() {
       })
       const json = await res.json()
       if (!json.ok) throw new Error(json.error ?? 'erro')
-      router.push('/perfil')
+      router.push(next)
     } catch (e) {
       console.error('[prestador] create profile', e)
       setCreateErr('Não foi possível criar agora. Tente novamente.')
@@ -172,7 +179,7 @@ export default function PrestadorPage() {
           <div style={{ width: '100%', maxWidth: 400, background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 16, padding: '36px 28px' }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Quase lá!</h2>
             <p style={{ fontSize: 14, color: '#555', marginBottom: 24 }}>Crie sua conta para publicar seu perfil e receber bicos.</p>
-            <AuthForm onSuccess={() => setShowAuth(false)} redirectTo="/prestador" />
+            <AuthForm onSuccess={() => setShowAuth(false)} redirectTo={`/prestador?next=${encodeURIComponent(next)}`} />
           </div>
         </div>
       )}

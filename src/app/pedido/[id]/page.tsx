@@ -85,6 +85,7 @@ export default function PedidoPage() {
   const [applyError,    setApplyError]    = useState('')
   const [applied,       setApplied]       = useState(false)
   const [accepting,     setAccepting]     = useState<string | null>(null)
+  const [hasProfile,    setHasProfile]    = useState(false)
 
   const channelRef = useRef<RealtimeChannel | null>(null)
 
@@ -138,7 +139,16 @@ export default function PedidoPage() {
   useEffect(() => {
     if (!demand) return
     const myId = profile?.id ?? null
-    if (myId) setAuthUserId(myId)
+    if (myId) {
+      setAuthUserId(myId)
+      // Does this user already have a professional profile? (public read, never hangs)
+      ;(async () => {
+        try {
+          const { data } = await pub.from('professional_profiles').select('id').eq('user_id', myId).maybeSingle()
+          setHasProfile(!!data)
+        } catch { /* ignore */ }
+      })()
+    }
 
     const ownedByAccount = !!(myId && demand.user_id && myId === demand.user_id)
     const ownedByAnon    = !!(demand.anonymous_token && demand.anonymous_token === getAnonToken())
@@ -357,7 +367,15 @@ export default function PedidoPage() {
               </div>
             ) : (
               <button
-                onClick={() => authUserId ? setShowApply(true) : setShowAuthModal(true)}
+                onClick={() => {
+                  // Para se candidatar é preciso ter um PERFIL de profissional.
+                  // Se não tem conta ou perfil ainda → vai pro chat /prestador e volta pra cá.
+                  if (!authUserId || !hasProfile) {
+                    router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}`)}`)
+                    return
+                  }
+                  setShowApply(true)
+                }}
                 style={{ width: '100%', height: 52, borderRadius: 10, border: 'none', background: '#fff', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
               >
                 Me candidatar →
