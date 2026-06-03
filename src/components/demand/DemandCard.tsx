@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
+import { getAnonToken } from '@/lib/anonymous'
 import type { DemandFeedItem } from '@/hooks/useDemandFeed'
 
 function timeAgo(iso: string): string {
@@ -30,8 +32,17 @@ interface Props {
 
 export default function DemandCard({ item }: Props) {
   const router = useRouter()
+  const { profile } = useAuth()
   const [time, setTime] = useState(() => timeAgo(item.created_at))
   const [hover, setHover] = useState(false)
+
+  // Dono do pedido? (resolvido no client p/ evitar mismatch de hidratação)
+  const [isOwner, setIsOwner] = useState(false)
+  useEffect(() => {
+    const ownedByAccount = !!(profile?.id && item.user_id && profile.id === item.user_id)
+    const ownedByAnon    = !!(item.anonymous_token && item.anonymous_token === getAnonToken())
+    setIsOwner(ownedByAccount || ownedByAnon)
+  }, [profile, item.user_id, item.anonymous_token])
 
   useEffect(() => {
     const id = setInterval(() => setTime(timeAgo(item.created_at)), 15_000)
@@ -100,6 +111,27 @@ export default function DemandCard({ item }: Props) {
           </span>
         )}
       </div>
+
+      {/* "Tenho interesse" — só aparece se o pedido NÃO for meu */}
+      {isOwner ? (
+        <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 10, marginTop: 2 }}>
+          <span style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>📌 Este pedido é seu</span>
+        </div>
+      ) : (
+        <button
+          onClick={(e) => { e.stopPropagation(); router.push(`/pedido/${item.id}?interesse=1`) }}
+          style={{
+            marginTop: 2, height: 42, borderRadius: 9, border: 'none',
+            background: '#00d4ff', color: '#001a20', fontSize: 14, fontWeight: 800,
+            cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', gap: 7, transition: 'filter 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+          onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+        >
+          ✋ Tenho interesse
+        </button>
+      )}
     </div>
   )
 }

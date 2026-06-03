@@ -126,6 +126,8 @@ export default function FeedPage() {
             candidate_count:  (r.candidate_count as number | null) ?? 0,
             created_at:       r.created_at as string,
             media_urls:       (r.media_urls as string[] | null) ?? [],
+            user_id:          (r.user_id as string | null) ?? null,
+            anonymous_token:  anonTok,
           }
         })
         setExtraItems(prev => [...prev, ...mapped])

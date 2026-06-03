@@ -14,6 +14,8 @@ export interface DemandFeedItem {
   candidate_count: number
   created_at:      string
   media_urls:      string[]
+  user_id:         string | null
+  anonymous_token: string | null
   isNew?:          boolean
 }
 
@@ -62,6 +64,8 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
       candidate_count:  (row.candidate_count as number | null) ?? 0,
       created_at:       row.created_at as string,
       media_urls:       (row.media_urls as string[] | null) ?? [],
+      user_id:          (row.user_id as string | null) ?? null,
+      anonymous_token:  (anonTok as string | null) ?? null,
     }
   }
 

@@ -95,8 +95,16 @@ export default function PedidoPage() {
   const [applied,       setApplied]       = useState(false)
   const [accepting,     setAccepting]     = useState<string | null>(null)
   const [hasProfile,    setHasProfile]    = useState(false)
+  const [profileChecked, setProfileChecked] = useState(false)
 
-  const channelRef = useRef<RealtimeChannel | null>(null)
+  const channelRef   = useRef<RealtimeChannel | null>(null)
+  const wantsApplyRef = useRef(false)   // veio do botão "Tenho interesse" do feed
+  const triggeredRef  = useRef(false)
+
+  // Detecta a intenção de candidatar vinda do feed (?interesse=1)
+  useEffect(() => {
+    wantsApplyRef.current = new URLSearchParams(window.location.search).get('interesse') === '1'
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -156,6 +164,7 @@ export default function PedidoPage() {
           const { data } = await pub.from('professional_profiles').select('id').eq('user_id', myId).maybeSingle()
           setHasProfile(!!data)
         } catch { /* ignore */ }
+        finally { setProfileChecked(true) }
       })()
     }
 
@@ -193,6 +202,31 @@ export default function PedidoPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, demand])
+
+  /* ── Inicia a candidatura (botão "Me candidatar" ou intenção "Tenho interesse") ── */
+  function startApply() {
+    if (isOwner || demand?.status !== 'open') return
+    // Sem conta OU sem perfil de profissional → vai pro chat /prestador e volta pra cá.
+    if (!authUserId) { setShowAuthModal(true); return }
+    if (!hasProfile) {
+      router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}?interesse=1`)}`)
+      return
+    }
+    setShowApply(true)
+  }
+
+  /* ── Auto-abre a candidatura quando o usuário chega pelo "Tenho interesse" ── */
+  useEffect(() => {
+    if (triggeredRef.current) return
+    if (loading || !demand) return
+    if (!wantsApplyRef.current) return
+    if (isOwner || demand.status !== 'open') return
+    if (!authUserId) { triggeredRef.current = true; setShowAuthModal(true); return }
+    if (!profileChecked) return            // espera saber se já tem perfil
+    triggeredRef.current = true
+    startApply()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, demand, isOwner, authUserId, profileChecked, hasProfile])
 
   /* ── Apply ── */
   async function handleApply() {
@@ -376,15 +410,7 @@ export default function PedidoPage() {
               </div>
             ) : (
               <button
-                onClick={() => {
-                  // Para se candidatar é preciso ter um PERFIL de profissional.
-                  // Se não tem conta ou perfil ainda → vai pro chat /prestador e volta pra cá.
-                  if (!authUserId || !hasProfile) {
-                    router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}`)}`)
-                    return
-                  }
-                  setShowApply(true)
-                }}
+                onClick={startApply}
                 style={{ width: '100%', height: 52, borderRadius: 10, border: 'none', background: '#fff', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
               >
                 Me candidatar →
