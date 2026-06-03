@@ -82,6 +82,15 @@ drop policy if exists "users_insert_own" on users;
 create policy "users_insert_own" on users for insert to authenticated
   with check (auth.uid() = auth_id);
 
+-- ───────────────────────────────────────────────────────────
+--  SEGURANÇA: tabela legada "profiles" também tinha email, phone
+--  e whatsapp públicos. Trava por coluna: libera só campos seguros.
+-- ───────────────────────────────────────────────────────────
+revoke select on public.profiles from anon, authenticated;
+grant select (id, full_name, avatar_url, bio, city, state, type, score, seal,
+              verified, skills, cover_url, concluidos, created_at)
+  on public.profiles to anon, authenticated;
+
 -- professional_profiles: leitura pública (busca de profissionais)
 drop policy if exists "profiles_select_public" on professional_profiles;
 create policy "profiles_select_public" on professional_profiles for select
