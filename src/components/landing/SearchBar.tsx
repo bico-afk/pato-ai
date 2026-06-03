@@ -39,9 +39,27 @@ function PinIcon({ spinning }: { spinning: boolean }) {
 }
 
 /* ── SearchBar ──────────────────────────────────────────────── */
+const PLACEHOLDERS = [
+  'uma diarista para faxina',
+  'consertar o chuveiro hoje',
+  'um frete pequeno amanhã',
+  'alguém pra montar móveis',
+  'aula de matemática',
+  'um pintor pro quarto',
+]
+
 export default function SearchBar({ onSearch, loading }: Props) {
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Placeholder que cicla exemplos a cada 2,5s — pausa ao digitar.
+  const [phIdx, setPhIdx] = useState(0)
+  useEffect(() => {
+    if (query.trim()) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const t = setInterval(() => setPhIdx(i => (i + 1) % PLACEHOLDERS.length), 2500)
+    return () => clearInterval(t)
+  }, [query])
   const supabaseRef = useRef(createPublicClient())
   const supabase = supabaseRef.current
 
@@ -230,20 +248,21 @@ export default function SearchBar({ onSearch, loading }: Props) {
         {/* Query input */}
         <input
           ref={inputRef}
+          className="bikco-query"
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-          placeholder="Ex: eletricista, pintor, frete, doceira..."
+          placeholder={`Ex: ${PLACEHOLDERS[phIdx]}…`}
           autoFocus
           style={{ flex: 1, height: 56, minWidth: 0, background: 'transparent', border: 'none', color: '#fff', fontSize: 15, padding: '0 16px', outline: 'none' }}
         />
 
         {/* Submit */}
         <button type="submit" disabled={!canSubmit}
-          style={{ flexShrink: 0, height: 56, padding: '0 24px', background: canSubmit ? '#fff' : '#1a1a1a', border: 'none', color: canSubmit ? '#000' : '#333', fontSize: 14, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ flexShrink: 0, height: 56, padding: '0 24px', background: canSubmit ? '#FFC53D' : '#1a1a1a', border: 'none', color: canSubmit ? '#1a1300' : '#333', fontSize: 14, fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'all 0.15s', boxShadow: canSubmit ? '0 0 20px rgba(255,197,61,0.25)' : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
           {loading
-            ? <span style={{ width: 14, height: 14, border: '2px solid #333', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
+            ? <span style={{ width: 14, height: 14, border: '2px solid rgba(0,0,0,0.3)', borderTopColor: '#1a1300', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
             : 'Publicar'}
         </button>
       </div>
@@ -360,7 +379,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
         @media (max-width: 600px) {
           form > div:first-child { flex-wrap: wrap; }
           form > div:first-child > div:first-child { width: 100% !important; border-right: none !important; border-bottom: 1px solid #1e1e1e; }
-          form > div:first-child input[placeholder*="eletricista"] { border-bottom: 1px solid #1e1e1e; width: 100%; }
+          form > div:first-child input.bikco-query { border-bottom: 1px solid #1e1e1e; width: 100%; }
           form > div:first-child button[type="submit"] { width: 100% !important; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }

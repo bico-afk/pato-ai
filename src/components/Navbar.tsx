@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import BikcoDuck from '@/components/landing/BikcoDuck'
 
 const initials = (n: string) =>
   (n ?? '').split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?'
@@ -49,7 +50,8 @@ export default function Navbar() {
     }}>
 
       {/* ── Logo ── */}
-      <Link href="/" style={{ fontSize: 15, fontWeight: 900, color: '#fff', textDecoration: 'none', letterSpacing: '-0.5px', flexShrink: 0 }}>
+      <Link href="/" className="bikco-logo" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 900, color: '#fff', textDecoration: 'none', letterSpacing: '-0.5px', flexShrink: 0 }}>
+        <BikcoDuck size={22} />
         BIKCO
       </Link>
 
