@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import AuthForm from '@/components/auth/AuthForm'
 
@@ -17,8 +16,6 @@ const GREETING = 'Oi! 👋 Que bom te ver por aqui. Me conta: o que você sabe f
 export default function PrestadorPage() {
   const router = useRouter()
   const { profile: authProfile } = useAuth()
-  const sessionRef = useRef(createClient())
-  const supabase = sessionRef.current
 
   const [messages, setMessages] = useState<Msg[]>([{ role: 'assistant', content: GREETING }])
   const [input,    setInput]    = useState('')
@@ -60,29 +57,14 @@ export default function PrestadorPage() {
     if (!authProfile?.id) { pendingCreate.current = true; setShowAuth(true); return }
     setCreating(true); setCreateErr('')
     try {
-      await supabase.from('users').update({
-        full_name: profileData.nome,
-        bio:       profileData.bio,
-      }).eq('id', authProfile.id)
-
-      const { data: existing } = await supabase
-        .from('professional_profiles').select('id').eq('user_id', authProfile.id).maybeSingle()
-
-      const payload = {
-        user_id:          authProfile.id,
-        headline:         profileData.headline,
-        skills:           profileData.skills,
-        location_city:    profileData.cidade,
-        location_state:   profileData.estado,
-        location_country: 'BR',
-        is_available:     true,
-      }
-
-      const { error } = existing
-        ? await supabase.from('professional_profiles').update(payload).eq('id', (existing as { id: string }).id)
-        : await supabase.from('professional_profiles').insert(payload)
-      if (error) throw error
-
+      // Server-side create (uses the auth cookie) — avoids the browser
+      // session-client lock deadlock that would hang the write forever.
+      const res  = await fetch('/api/create-profile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData),
+      })
+      const json = await res.json()
+      if (!json.ok) throw new Error(json.error ?? 'erro')
       router.push('/perfil')
     } catch (e) {
       console.error('[prestador] create profile', e)
