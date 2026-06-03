@@ -48,10 +48,14 @@ export default function PrestadorPage() {
   const [audioUrl,      setAudioUrl]      = useState<string | null>(null)
   const [uploading,     setUploading]     = useState(false)
   const [recording,     setRecording]     = useState(false)
+  const [recSeconds,    setRecSeconds]    = useState(0)
+  const [menuOpen,      setMenuOpen]      = useState(false)
+  const [mediaErr,      setMediaErr]      = useState('')
   const avatarInputRef    = useRef<HTMLInputElement>(null)
   const portfolioInputRef = useRef<HTMLInputElement>(null)
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null)
   const audioChunksRef    = useRef<Blob[]>([])
+  const recTimerRef       = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking, profileData])
 
@@ -134,31 +138,56 @@ export default function PrestadorPage() {
   }
 
   // ── Áudio de apresentação ──
+  function stopRecTimer() {
+    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
+  }
+
   async function toggleRecording() {
     if (thinking) return
+    setMediaErr('')
     if (recording) { mediaRecorderRef.current?.stop(); return }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setMediaErr('Seu navegador não permite gravar áudio aqui. Tente pelo Chrome.')
+      return
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mr = new MediaRecorder(stream)
+      // Escolhe um formato suportado (Chrome=webm, Safari=mp4)
+      const mime = ['audio/webm', 'audio/mp4', 'audio/ogg'].find(m => MediaRecorder.isTypeSupported?.(m)) || ''
+      const ext  = mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : 'webm'
+      const mr   = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
       audioChunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size) audioChunksRef.current.push(e.data) }
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-        setRecording(false)
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        if (blob.size < 800) return // gravação vazia
+        stopRecTimer(); setRecording(false); setRecSeconds(0)
+        const blob = new Blob(audioChunksRef.current, { type: mime || 'audio/webm' })
+        if (blob.size < 600) { setMediaErr('Gravação muito curta. Tente de novo.'); return }
         setUploading(true)
         try {
-          const url = await uploadToBucket(blob, 'webm')
+          const url = await uploadToBucket(blob, ext)
           if (url) {
             setAudioUrl(url)
             await sendMessages([...messages, { role: 'user', content: '[anexei: áudio de apresentação]', media: { kind: 'audio', url, type: 'audio' } }])
+          } else {
+            setMediaErr('Não consegui enviar o áudio. Tente de novo.')
           }
         } finally { setUploading(false) }
       }
-      mr.start(); mediaRecorderRef.current = mr; setRecording(true)
-    } catch { /* microfone negado */ }
+      mr.start(); mediaRecorderRef.current = mr
+      setRecording(true); setRecSeconds(0)
+      recTimerRef.current = setInterval(() => setRecSeconds(s => {
+        if (s >= 119) { mr.stop(); return s } // limite ~2min
+        return s + 1
+      }), 1000)
+    } catch (e) {
+      console.error('[prestador] mic', e)
+      setMediaErr('Não consegui acessar o microfone. Verifique a permissão do navegador.')
+    }
   }
+
+  useEffect(() => () => stopRecTimer(), [])
 
   async function createProfile() {
     if (!profileData) return
@@ -301,45 +330,87 @@ export default function PrestadorPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input + anexos */}
+      {/* Composer estilo ChatGPT/Claude */}
       {!profileData && (
-        <div style={{ flexShrink: 0, borderTop: '1px solid #111', padding: '10px 16px 18px' }}>
-          <div style={{ maxWidth: 640, margin: '0 auto' }}>
-
-            {/* Barra de anexos */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              <AttachBtn label="Foto de perfil" icon="📷" disabled={busy} active={!!avatarUrl}
-                onClick={() => avatarInputRef.current?.click()} />
-              <AttachBtn label="Portfólio" icon="🖼️" disabled={busy} active={portfolioUrls.length > 0}
-                onClick={() => portfolioInputRef.current?.click()} />
-              <AttachBtn label={recording ? 'Parar gravação' : 'Gravar áudio'} icon={recording ? '⏹️' : '🎤'}
-                disabled={thinking} active={!!audioUrl} recording={recording} onClick={toggleRecording} />
-              {uploading && <span style={{ alignSelf: 'center', fontSize: 12, color: '#00d4ff', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 12, height: 12, border: '2px solid rgba(0,212,255,0.3)', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} /> enviando…
-              </span>}
-              {recording && <span style={{ alignSelf: 'center', fontSize: 12, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#ef4444', animation: 'live-pulse 1.2s infinite' }} /> gravando…
-              </span>}
-            </div>
+        <div style={{ flexShrink: 0, borderTop: '1px solid #111', padding: '10px 16px 16px' }}>
+          <div style={{ maxWidth: 640, margin: '0 auto', position: 'relative' }}>
 
             <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => e.target.files && handleAvatar(e.target.files)} />
+              onChange={e => { if (e.target.files) handleAvatar(e.target.files); e.target.value = '' }} />
             <input ref={portfolioInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,.webm" multiple style={{ display: 'none' }}
-              onChange={e => e.target.files && handlePortfolio(e.target.files)} />
+              onChange={e => { if (e.target.files) handlePortfolio(e.target.files); e.target.value = '' }} />
 
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-              <div style={{ flex: 1, background: '#111', border: '1px solid #1e1e1e', borderRadius: 14, padding: '10px 14px' }}>
+            {mediaErr && (
+              <p style={{ fontSize: 12, color: '#ef4444', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>⚠ {mediaErr}</p>
+            )}
+
+            {/* Chips do que já foi anexado */}
+            {(avatarUrl || portfolioUrls.length > 0 || audioUrl) && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                {avatarUrl && <Chip icon="📷" label="Foto de perfil" />}
+                {portfolioUrls.length > 0 && <Chip icon="🖼️" label={`Portfólio (${portfolioUrls.length})`} />}
+                {audioUrl && <Chip icon="🎤" label="Áudio" />}
+              </div>
+            )}
+
+            {/* Menu de anexo (popover do "+") */}
+            {menuOpen && (
+              <>
+                <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                <div style={{ position: 'absolute', bottom: 60, left: 0, zIndex: 50, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14, padding: 6, minWidth: 230, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
+                  <MenuItem icon="📷" title="Foto de perfil" sub="Uma foto do seu rosto" disabled={busy}
+                    onClick={() => { setMenuOpen(false); avatarInputRef.current?.click() }} />
+                  <MenuItem icon="🖼️" title="Fotos e vídeos" sub="Trabalhos do seu portfólio" disabled={busy}
+                    onClick={() => { setMenuOpen(false); portfolioInputRef.current?.click() }} />
+                </div>
+              </>
+            )}
+
+            {/* Barra única arredondada */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, background: '#161616', border: `1px solid ${recording ? 'rgba(239,68,68,0.5)' : '#262626'}`, borderRadius: 26, padding: '7px 8px 7px 7px' }}>
+
+              {/* Botão "+" de anexo */}
+              <button type="button" onClick={() => { setMediaErr(''); setMenuOpen(o => !o) }} disabled={busy || recording}
+                title="Anexar foto, vídeo ou portfólio"
+                style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, border: 'none', background: menuOpen ? '#2a2a2a' : 'transparent', color: busy ? '#444' : '#bbb', cursor: busy || recording ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.15s', transform: menuOpen ? 'rotate(45deg)' : 'none' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+
+              {recording ? (
+                /* Estado de gravação */
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px', height: 38 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', animation: 'live-pulse 1.2s infinite', flexShrink: 0 }} />
+                  <span style={{ fontSize: 14, color: '#ef4444', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                    {Math.floor(recSeconds / 60)}:{String(recSeconds % 60).padStart(2, '0')}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#777' }}>gravando áudio…</span>
+                </div>
+              ) : (
                 <textarea ref={taRef} value={input} rows={1}
                   onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                   placeholder="Escreva sua resposta…"
-                  style={{ width: '100%', background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 14.5, lineHeight: 1.5, resize: 'none', fontFamily: 'inherit', overflow: 'hidden' }} />
-              </div>
-              <button onClick={send} disabled={!input.trim() || busy}
-                style={{ width: 44, height: 44, borderRadius: 12, border: 'none', flexShrink: 0, background: input.trim() && !busy ? '#fff' : '#111', cursor: input.trim() && !busy ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={input.trim() && !busy ? '#000' : '#444'} strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: 14.5, lineHeight: 1.5, resize: 'none', fontFamily: 'inherit', overflow: 'hidden', padding: '8px 4px', minWidth: 0 }} />
+              )}
+
+              {/* Microfone */}
+              <button type="button" onClick={toggleRecording} disabled={thinking || uploading}
+                title={recording ? 'Parar gravação' : 'Gravar áudio'}
+                style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, border: 'none', background: recording ? '#ef4444' : 'transparent', color: recording ? '#fff' : (thinking || uploading ? '#444' : '#bbb'), cursor: thinking || uploading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {recording
+                  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>}
+              </button>
+
+              {/* Enviar */}
+              <button type="button" onClick={send} disabled={!input.trim() || busy || recording}
+                style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, border: 'none', background: input.trim() && !busy && !recording ? '#fff' : '#222', cursor: input.trim() && !busy && !recording ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {uploading
+                  ? <span style={{ width: 15, height: 15, border: '2px solid #444', borderTopColor: '#999', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
+                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={input.trim() && !busy && !recording ? '#000' : '#555'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>}
               </button>
             </div>
+
             <p style={{ textAlign: 'center', fontSize: 11, color: '#444', marginTop: 8 }}>
               Procurando contratar? <Link href="/" style={{ color: '#666' }}>Publicar um pedido →</Link>
             </p>
@@ -370,21 +441,29 @@ export default function PrestadorPage() {
   )
 }
 
-/* Botão de anexo da barra do chat */
-function AttachBtn({ label, icon, onClick, disabled, active, recording }: {
-  label: string; icon: string; onClick: () => void; disabled?: boolean; active?: boolean; recording?: boolean
+/* Item do menu de anexo (popover do "+") */
+function MenuItem({ icon, title, sub, onClick, disabled }: {
+  icon: string; title: string; sub: string; onClick: () => void; disabled?: boolean
 }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
-        background: recording ? 'rgba(239,68,68,0.12)' : active ? 'rgba(34,197,94,0.10)' : '#111',
-        border: `1px solid ${recording ? 'rgba(239,68,68,0.4)' : active ? 'rgba(34,197,94,0.35)' : '#1e1e1e'}`,
-        borderRadius: 10, padding: '7px 11px', fontSize: 12.5, fontWeight: 600,
-        color: recording ? '#ef4444' : active ? '#22c55e' : '#888',
-        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
-      }}>
-      <span>{icon}</span>{label}{active && !recording && <span style={{ color: '#22c55e' }}>✓</span>}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderRadius: 10, padding: '10px 12px', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, fontFamily: 'inherit' }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = '#262626' }}
+      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+      <span style={{ fontSize: 18, width: 32, height: 32, borderRadius: 8, background: '#262626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#eee' }}>{title}</span>
+        <span style={{ display: 'block', fontSize: 12, color: '#777' }}>{sub}</span>
+      </span>
     </button>
+  )
+}
+
+/* Chip do que já foi anexado */
+function Chip({ icon, label }: { icon: string; label: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#22c55e', background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.30)', borderRadius: 99, padding: '4px 10px' }}>
+      <span>{icon}</span>{label}<span>✓</span>
+    </span>
   )
 }
