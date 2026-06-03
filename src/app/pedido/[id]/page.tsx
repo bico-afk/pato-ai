@@ -95,7 +95,7 @@ export default function PedidoPage() {
   const supabase    = supabaseRef.current
   const pubRef      = useRef(createPublicClient())    // anon client — for public reads (never hangs)
   const pub         = pubRef.current
-  const { profile } = useAuth()                       // reliable logged-in identity (no getSession hang)
+  const { profile, loading: authLoading } = useAuth() // reliable logged-in identity (no getSession hang)
 
   const [demand,        setDemand]        = useState<Demand | null>(null)
   const [applications,  setApplications]  = useState<Application[]>([])
@@ -221,12 +221,12 @@ export default function PedidoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, demand])
 
-  /* ── Inicia a candidatura (botão "Me candidatar" ou intenção "Tenho interesse") ── */
+  /* ── Inicia a candidatura (botão "Me candidatar" ou intenção "Tenho interesse") ──
+     Sem conta OU sem perfil de profissional → abre o CHAT de cadastro (/prestador),
+     que coleta tudo e cria a conta no final, voltando pra cá pra concluir. */
   function startApply() {
     if (isOwner || demand?.status !== 'open') return
-    // Sem conta OU sem perfil de profissional → vai pro chat /prestador e volta pra cá.
-    if (!authUserId) { setShowAuthModal(true); return }
-    if (!hasProfile) {
+    if (!authUserId || !hasProfile) {
       router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}?interesse=1`)}`)
       return
     }
@@ -239,12 +239,18 @@ export default function PedidoPage() {
     if (loading || !demand) return
     if (!wantsApplyRef.current) return
     if (isOwner || demand.status !== 'open') return
-    if (!authUserId) { triggeredRef.current = true; setShowAuthModal(true); return }
-    if (!profileChecked) return            // espera saber se já tem perfil
+    if (authLoading) return                // espera o auth resolver antes de decidir
+    const myId = profile?.id ?? null
+    if (!myId) {                           // não logado → vai direto pro chat de cadastro
+      triggeredRef.current = true
+      router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}?interesse=1`)}`)
+      return
+    }
+    if (!profileChecked) return            // logado → espera saber se já tem perfil
     triggeredRef.current = true
     startApply()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, demand, isOwner, authUserId, profileChecked, hasProfile])
+  }, [loading, demand, isOwner, authLoading, profile, profileChecked, hasProfile])
 
   /* ── Apply ── */
   async function handleApply() {
