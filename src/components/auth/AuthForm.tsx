@@ -32,14 +32,15 @@ const inputBase: React.CSSProperties = {
 
 function translateError(msg: string): string {
   const m = msg.toLowerCase()
+  if (m.includes('provider') || m.includes('disabled') || m.includes('unsupported') || m.includes('not enabled') || m.includes('signups'))
+    return 'Login por WhatsApp está sendo ativado. Tente novamente em instantes.'
   if (m.includes('security purposes') || m.includes('rate') || m.includes('wait') || m.includes('after'))
     return 'Aguarde alguns segundos antes de tentar novamente.'
   if (m.includes('invalid') && (m.includes('otp') || m.includes('token')))
     return 'Código inválido. Confira e tente de novo.'
   if (m.includes('expired')) return 'Código expirado. Peça um novo.'
-  if (m.includes('phone')) return 'Número de WhatsApp inválido.'
   if (m.includes('network') || m.includes('fetch')) return 'Erro de conexão. Verifique sua internet.'
-  if (m.includes('signups') || m.includes('disabled')) return 'Login por telefone ainda não está ativo. Avise o suporte.'
+  if (m.includes('phone')) return 'Número de WhatsApp inválido. Confira o DDD.'
   return 'Não foi possível agora. Tente novamente.'
 }
 
