@@ -87,8 +87,13 @@ export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
     try {
       const { error: sbError } = await supabase.auth.verifyOtp({ phone: fullPhone, token, type: 'sms' })
       if (sbError) throw sbError
-      // Garante a linha em public.users (o fluxo de telefone não passa pelo callback)
-      try { await fetch('/api/auth/ensure-user', { method: 'POST' }) } catch { /* não-fatal */ }
+      // Garante a linha em public.users (o fluxo de telefone não passa pelo callback).
+      // Com timeout para nunca pendurar a UI.
+      try {
+        const ac = new AbortController()
+        const t = setTimeout(() => ac.abort(), 6000)
+        await fetch('/api/auth/ensure-user', { method: 'POST', signal: ac.signal }).finally(() => clearTimeout(t))
+      } catch { /* não-fatal */ }
       if (onSuccess) onSuccess()
       else { router.push(redirectTo); router.refresh() }
     } catch (e) {

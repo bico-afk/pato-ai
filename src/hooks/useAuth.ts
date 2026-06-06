@@ -63,13 +63,22 @@ export function useAuth() {
     }
     init()
 
-    // Listen for auth changes
+    // Listen for auth changes.
+    // IMPORTANTE: NÃO chamar funções do Supabase DENTRO deste callback —
+    // ele roda segurando o "auth lock"; chamar supabase.from()/getUser() aqui
+    // trava o lock e faz o verifyOtp/signIn pendurar pra sempre (spinner infinito).
+    // Solução: marcar o estado de forma síncrona e buscar o perfil FORA do callback.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: string, session: Session | null) => {
+      (_event: string, session: Session | null) => {
         if (!mounted) return
         if (session?.user) {
-          const profile = await fetchProfile(session.user.id)
-          if (mounted) setState({ user: session.user, profile, loading: false, isAuthenticated: true })
+          const u = session.user
+          setState(prev => ({ ...prev, user: u, loading: false, isAuthenticated: true }))
+          // adia a leitura do perfil para liberar o lock antes
+          setTimeout(async () => {
+            const profile = await fetchProfile(u.id)
+            if (mounted) setState({ user: u, profile, loading: false, isAuthenticated: true })
+          }, 0)
         } else {
           setState({ user: null, profile: null, loading: false, isAuthenticated: false })
         }
