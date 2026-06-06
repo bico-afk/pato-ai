@@ -70,6 +70,7 @@ export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
   const [phone,       setPhone]       = useState('')
   const [countryCode, setCountryCode] = useState('+55')
   const [emailStep,   setEmailStep]   = useState<EmailStep>('input')
+  const [code,        setCode]        = useState('')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState('')
   const [countdown,   setCountdown]   = useState(0)
@@ -99,13 +100,34 @@ export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
     try {
       const { error: sbError } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}` },
+        options: {
+          shouldCreateUser: true,
+          // mantém o link como alternativa; o código (token) vem no mesmo e-mail
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+        },
       })
       if (sbError) throw sbError
       setEmailStep('sent')
+      setCode('')
       startCountdown()
     } catch (e) {
       setError(e instanceof Error ? translateError(e.message) : 'Erro ao enviar. Tente novamente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleVerifyCode() {
+    const token = code.replace(/\s/g, '')
+    if (token.length < 6) { setError('Digite o código de 6 dígitos.'); return }
+    setError(''); setLoading(true)
+    try {
+      const { error: sbError } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+      if (sbError) throw sbError
+      if (onSuccess) onSuccess()
+      else { router.push(redirectTo); router.refresh() }
+    } catch (e) {
+      setError(e instanceof Error ? translateError(e.message) : 'Código inválido. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -129,11 +151,11 @@ export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
   async function handleResend() {
     if (countdown > 0) return
     if (mode === 'email') {
-      setEmailStep('input')
+      await handleEmailSubmit()   // reenvia um novo código
     } else {
       await handlePhoneSubmit()
+      startCountdown()
     }
-    startCountdown()
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -162,30 +184,66 @@ export default function AuthForm({ onSuccess, redirectTo = '/' }: Props) {
     )
   }
 
-  /* ── Email sent screen ── */
+  /* ── Email code screen ── */
   if (emailStep === 'sent') {
     return (
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 20 }}>📬</div>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔑</div>
         <h2 style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 8 }}>
-          Link enviado!
+          Digite o código
         </h2>
-        <p style={{ fontSize: 14, color: '#888', lineHeight: 1.6, marginBottom: 32 }}>
-          Enviamos um link para <span style={{ color: '#fff', fontWeight: 600 }}>{email}</span>.
-          <br />Clique nele para entrar.
+        <p style={{ fontSize: 14, color: '#888', lineHeight: 1.6, marginBottom: 22 }}>
+          Enviamos um código de 6 dígitos para <span style={{ color: '#fff', fontWeight: 600 }}>{email}</span>.
         </p>
-        <button
-          onClick={handleResend}
-          disabled={countdown > 0}
+
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          value={code}
+          onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
+          onKeyDown={e => { if (e.key === 'Enter') handleVerifyCode() }}
+          placeholder="000000"
+          autoFocus
+          maxLength={6}
           style={{
-            background: 'none', border: 'none',
-            color: countdown > 0 ? '#444' : '#00d4ff',
-            fontSize: 13, cursor: countdown > 0 ? 'default' : 'pointer',
-            fontWeight: 600,
+            ...inputBase, height: 60, textAlign: 'center', fontSize: 28, fontWeight: 800,
+            letterSpacing: '0.5em', paddingRight: 0, paddingLeft: '0.5em',
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = '#00d4ff')}
+          onBlur={e  => (e.currentTarget.style.borderColor = '#333')}
+        />
+
+        {error && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 8 }}>{error}</p>}
+
+        <button
+          onClick={handleVerifyCode}
+          disabled={loading || code.length < 6}
+          style={{
+            width: '100%', height: 52, borderRadius: 8, border: 'none', marginTop: 16,
+            background: loading || code.length < 6 ? '#1a1a1a' : '#fff',
+            color: loading || code.length < 6 ? '#444' : '#000',
+            fontSize: 15, fontWeight: 800, cursor: loading || code.length < 6 ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
-          {countdown > 0 ? `Reenviar em ${countdown}s` : 'Reenviar link'}
+          {loading
+            ? <span style={{ width: 18, height: 18, border: '2px solid #333', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+            : 'Verificar e entrar'}
         </button>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+          <button onClick={() => { setEmailStep('input'); setError('') }}
+            style={{ background: 'none', border: 'none', color: '#666', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+            ← Trocar email
+          </button>
+          <button onClick={handleResend} disabled={countdown > 0}
+            style={{ background: 'none', border: 'none', color: countdown > 0 ? '#444' : '#00d4ff', fontSize: 13, cursor: countdown > 0 ? 'default' : 'pointer', fontWeight: 600 }}>
+            {countdown > 0 ? `Reenviar em ${countdown}s` : 'Reenviar código'}
+          </button>
+        </div>
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     )
   }
