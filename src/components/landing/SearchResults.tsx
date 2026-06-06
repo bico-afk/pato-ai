@@ -211,6 +211,9 @@ export default function SearchResults({ results, loading, error, searched, query
             body: JSON.stringify({ demandId: data.id }),
           }).catch(() => { /* não-fatal */ })
         }
+
+        // Assim que publica, vai direto para o feed (junto das outras demandas).
+        router.push('/feed')
       } catch (err) {
         const e = err as { message?: string; name?: string; code?: string }
         console.error('[SearchResults] auto-publish error:', e.message || e.name || e.code, err)
