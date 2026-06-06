@@ -6,12 +6,12 @@ import { useLanding } from './LandingProvider'
 /* Alternador de lado (espírito Uber: andar / dirigir).
    Dois caminhos simétricos. O primeiro foca a barra de publicar
    (via callback), o segundo abre o fluxo de oferecer serviço. */
-export default function SideToggle({ onResolve }: { onResolve?: () => void }) {
+export default function SideToggle() {
   const router = useRouter()
   const { c, t } = useLanding()
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 18 }}>
-      <button type="button" onClick={onResolve}
+      <button type="button" onClick={() => router.push('/nova-demanda')}
         style={{
           flex: 1, minWidth: 200, height: 50, borderRadius: 12, cursor: 'pointer',
           fontFamily: 'inherit', fontSize: 14.5, fontWeight: 800,

@@ -71,7 +71,7 @@ function LandingInner() {
               {t('hero_sub')}
             </p>
             <PublishBar />
-            <SideToggle onResolve={focusPublish} />
+            <SideToggle />
           </div>
 
           <div className="hero-right">
