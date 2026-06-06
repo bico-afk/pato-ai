@@ -48,6 +48,26 @@ create policy "demands_update_owner" on demands for update
   using (auth.uid() = (select auth_id from users where id = user_id))
   with check (auth.uid() = (select auth_id from users where id = user_id));
 
+-- IMPORTANTE: as policies de ESCRITA antigas (demands_insert/write/update/delete)
+-- faziam subconsulta em `users`. Como anon perdeu acesso a `users` (fix do vazamento
+-- de email), o INSERT anônimo passava a dar "permission denied for table users".
+-- Separa por papel: anon insere com token (sem tocar em users); logado insere o seu.
+drop policy if exists "demands_insert" on demands;
+drop policy if exists "demands_write"  on demands;
+drop policy if exists "demands_update" on demands;
+drop policy if exists "demands_delete" on demands;
+
+drop policy if exists "demands_insert_anon" on demands;
+create policy "demands_insert_anon" on demands for insert to anon
+  with check (user_id is null and anonymous_token is not null);
+
+drop policy if exists "demands_insert_auth" on demands;
+create policy "demands_insert_auth" on demands for insert to authenticated
+  with check (
+    user_id is null
+    or user_id = (select u.id from users u where u.auth_id = auth.uid())
+  );
+
 -- ───────────────────────────────────────────────────────────
 --  SEGURANÇA: a tabela "users" guarda EMAIL e TELEFONE.
 --  NUNCA exponha a tabela inteira publicamente. Use uma VIEW só
