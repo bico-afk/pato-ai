@@ -201,6 +201,16 @@ export default function SearchResults({ results, loading, error, searched, query
 
         setPublishError(null)
         setPublishedId(data?.id ?? '')
+
+        // Dispara o matching → WhatsApp automático aos profissionais compatíveis.
+        // Fire-and-forget: não bloqueia a UI. (Backup ao Supabase DB Webhook.)
+        if (data?.id) {
+          fetch('/api/notify-match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal': '1' },
+            body: JSON.stringify({ demandId: data.id }),
+          }).catch(() => { /* não-fatal */ })
+        }
       } catch (err) {
         const e = err as { message?: string; name?: string; code?: string }
         console.error('[SearchResults] auto-publish error:', e.message || e.name || e.code, err)
