@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { rateLimit, clientIp, tooMany } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs' // ensure access to process.env (server-side only)
 
@@ -35,6 +36,10 @@ function textOf(content: Anthropic.Messages.ContentBlock[]): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 20 req/min por IP (defesa contra loop/abuso da Claude API)
+  const rl = rateLimit(`refine:${clientIp(req)}`, 20, 60_000)
+  if (!rl.ok) return tooMany(rl.retryAfter)
+
   let body: { text?: string }
   try {
     body = await req.json()

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import imageCompression from 'browser-image-compression'
 import { useAuth } from '@/hooks/useAuth'
 import { createPublicClient } from '@/lib/supabase/public'
+import { validateMediaFile } from '@/lib/uploadGuard'
 import AuthForm from '@/components/auth/AuthForm'
 
 interface MsgMedia { kind: 'avatar' | 'portfolio' | 'audio'; url: string; type: 'image' | 'video' | 'audio' }
@@ -117,6 +118,8 @@ export default function PrestadorPage() {
   async function handleAvatar(files: FileList) {
     const file = files[0]
     if (!file || thinking || uploading) return
+    const invalid = validateMediaFile(file)
+    if (invalid) { setMediaErr(invalid); return }
     setUploading(true)
     try {
       let up: Blob = file
@@ -138,6 +141,8 @@ export default function PrestadorPage() {
     const newUrls: string[] = []
     try {
       for (const file of toAdd) {
+        const invalid = validateMediaFile(file)
+        if (invalid) { setMediaErr(invalid); continue }
         const isVideo = file.type.startsWith('video')
         let up: Blob = file
         if (!isVideo) up = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true })
@@ -343,9 +348,14 @@ export default function PrestadorPage() {
 
             {/* Selo de verificação (CPF fica privado) */}
             {profileData.cpf && (
-              <p style={{ fontSize: 12, color: '#22c55e', margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                🔒 CPF recebido e guardado em sigilo (não aparece para ninguém).
-              </p>
+              <div style={{ margin: '0 0 14px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, color: '#2DD4BF', background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.3)', borderRadius: 99, padding: '4px 11px', marginBottom: 6 }}>
+                  ✓ Perfil verificado
+                </span>
+                <p style={{ fontSize: 12, color: '#22c55e', margin: '6px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  🔒 Seu CPF fica em sigilo — não aparece para ninguém.
+                </p>
+              </div>
             )}
 
             {createErr && <p style={{ fontSize: 12, color: '#ef4444', margin: '0 0 10px' }}>{createErr}</p>}

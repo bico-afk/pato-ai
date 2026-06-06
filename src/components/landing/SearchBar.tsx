@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import imageCompression from 'browser-image-compression'
 import { createPublicClient } from '@/lib/supabase/public'
+import { validateMediaFile } from '@/lib/uploadGuard'
 import type { LocationData } from '@/lib/geo'
 
 interface Props {
@@ -129,12 +130,16 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
   /* ── Media (fotos / vídeos) ── */
   const [medias, setMedias] = useState<MediaItem[]>([])
+  const [mediaErr, setMediaErr] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleFiles(files: FileList) {
+    setMediaErr('')
     const remaining = MAX_FILES - medias.length
     const toAdd = Array.from(files).slice(0, remaining)
     for (const file of toAdd) {
+      const invalid = validateMediaFile(file)
+      if (invalid) { setMediaErr(invalid); continue }
       const id = uuid()
       const type: 'image' | 'video' = file.type.startsWith('video') ? 'video' : 'image'
       setMedias(prev => [...prev, { id, preview: URL.createObjectURL(file), type, uploading: true }])
@@ -321,6 +326,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
           </>
         )}
       </div>
+      {mediaErr && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>⚠ {mediaErr}</p>}
 
       {/* ── Sugestão da IA — aparece sozinha e é editável ── */}
       {(query.trim().length >= 12 || aiSuggestion || aiLoading) && (

@@ -106,12 +106,16 @@ export default function FeedPage() {
       if (data && data.length > 0) {
         const rows = data as unknown as Record<string, unknown>[]
 
-        // Enrich usernames for logged-in posters
+        // Enrich usernames + selo verificado (fallback gracioso se a coluna não existir)
         const userIds = [...new Set(rows.map(r => r.user_id as string | null).filter(Boolean))] as string[]
-        let nameMap: Record<string, string> = {}
+        const nameMap: Record<string, string> = {}
+        const verifiedMap: Record<string, boolean> = {}
         if (userIds.length) {
-          const { data: us } = await supabase.from('user_public').select('id, username').in('id', userIds)
-          if (us) nameMap = Object.fromEntries((us as { id: string; username: string }[]).map(u => [u.id, u.username]))
+          type UPRow = { id: string; username: string; is_verified?: boolean }
+          let res = await supabase.from('user_public').select('id, username, is_verified').in('id', userIds) as { data: UPRow[] | null; error: unknown }
+          if (res.error) res = await supabase.from('user_public').select('id, username').in('id', userIds) as { data: UPRow[] | null; error: unknown }
+          const us = res.data
+          if (us) for (const u of us) { nameMap[u.id] = u.username; if (u.is_verified) verifiedMap[u.id] = true }
         }
 
         const mapped: DemandFeedItem[] = rows.map(r => {
@@ -120,6 +124,7 @@ export default function FeedPage() {
           return {
             id:               r.id as string,
             username:         name ? `@${name}` : anonTok ? anonUsername(anonTok) : '@usuário',
+            verified:         !!verifiedMap[r.user_id as string],
             title:            (r.title as string | null) ?? '',
             description:      r.description as string,
             location_city:    (r.location_city as string | null) ?? '',

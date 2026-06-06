@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { rateLimit, clientIp, tooMany } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 
@@ -76,6 +77,10 @@ function textOf(content: Anthropic.Messages.ContentBlock[]): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 30 msgs/min por IP (conversa é mais chatty, mas evita abuso)
+  const rl = rateLimit(`onboard:${clientIp(req)}`, 30, 60_000)
+  if (!rl.ok) return tooMany(rl.retryAfter)
+
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ ok: false, error: 'sem_api_key' }, { status: 500 })
 

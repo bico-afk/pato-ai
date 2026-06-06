@@ -69,8 +69,13 @@ export default function DemandCard({ item }: Props) {
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: '#00d4ff',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
           {item.username}
+          {item.verified && (
+            <span title="Identidade verificada" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10.5, fontWeight: 800, color: '#2DD4BF', background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.3)', borderRadius: 99, padding: '1px 6px' }}>
+              ✓ verificado
+            </span>
+          )}
         </span>
         <span style={{ fontSize: 12, color: '#555', flexShrink: 0 }}>{time}</span>
       </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit, clientIp, tooMany } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 
@@ -24,6 +25,9 @@ interface ProfileBody {
 }
 
 export async function POST(req: NextRequest) {
+  const rl = rateLimit(`profile:${clientIp(req)}`, 10, 60_000)
+  if (!rl.ok) return tooMany(rl.retryAfter)
+
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -57,6 +61,12 @@ export async function POST(req: NextRequest) {
       ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       ...(phone ? { phone, phone_country_code: '+55' } : {}),
     }).eq('id', userId)
+
+    // 1b) selo "verificado" quando há CPF (best-effort: ignora se a coluna
+    //     ainda não existir no banco — ver SQL de is_verified).
+    if (cpfNum) {
+      await supabase.from('users').update({ is_verified: true }).eq('id', userId)
+    }
 
     // 2) professional profile (insert or update)
     const { data: existing } = await supabase

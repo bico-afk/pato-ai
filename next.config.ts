@@ -15,10 +15,23 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options',     value: 'nosniff' },
           { key: 'Referrer-Policy',            value: 'strict-origin-when-cross-origin' },
           { key: 'X-DNS-Prefetch-Control',     value: 'on' },
-          { key: 'Permissions-Policy',         value: 'camera=(), microphone=(), geolocation=(self)' },
+          // microfone liberado p/ o próprio site (gravação de áudio no cadastro);
+          // câmera/geolocalização só para o próprio site.
+          { key: 'Permissions-Policy',         value: 'camera=(self), microphone=(self), geolocation=(self)' },
           { key: 'Strict-Transport-Security',  value: 'max-age=63072000; includeSubDomains; preload' },
         ],
       },
+    ]
+  },
+
+  // Telas legadas (liam a tabela `profiles`, agora privada) → redirecionam
+  // para o fluxo atual, evitando 403/becos sem saída.
+  async redirects() {
+    return [
+      { source: '/criar-pedido',     destination: '/nova-demanda', permanent: false },
+      { source: '/criar-perfil',     destination: '/prestador',    permanent: false },
+      { source: '/resultados',       destination: '/feed',         permanent: false },
+      { source: '/profissional/:id', destination: '/feed',         permanent: false },
     ]
   },
 };

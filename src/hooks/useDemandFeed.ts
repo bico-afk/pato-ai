@@ -8,6 +8,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload, REALTIME_SUBSCRIB
 export interface DemandFeedItem {
   id:              string
   username:        string
+  verified:        boolean
   title:           string
   description:     string
   location_city:   string
@@ -51,7 +52,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
   const supabaseRef  = useRef(createPublicClient())
   const supabase     = supabaseRef.current
 
-  function normalize(row: Record<string, unknown>, resolvedName?: string): DemandFeedItem {
+  function normalize(row: Record<string, unknown>, resolvedName?: string, resolvedVerified?: boolean): DemandFeedItem {
     const usersObj = row.users as { username?: string } | null
     const anonTok  = row.anonymous_token as string | null
     const name     = resolvedName ?? usersObj?.username
@@ -59,6 +60,7 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
     return {
       id:               row.id as string,
       username,
+      verified:         !!resolvedVerified,
       title:            (row.title as string | null) ?? '',
       description:      row.description as string,
       location_city:    (row.location_city as string | null) ?? '',
@@ -101,18 +103,25 @@ export function useDemandFeed(opts: UseDemandFeedOptions = {}) {
       // Enrich usernames for logged-in posters (anon posters use their token)
       const userIds = [...new Set(rows.map(r => r.user_id as string | null).filter(Boolean))] as string[]
       let nameMap: Record<string, string> = {}
+      const verifiedMap: Record<string, boolean> = {}
       if (userIds.length) {
         try {
-          const { data: us } = await withTimeout(
-            supabase.from('user_public').select('id, username').in('id', userIds),
-            8_000,
-          ) as { data: { id: string; username: string }[] | null }
-          if (us) nameMap = Object.fromEntries(us.map(u => [u.id, u.username]))
+          // Tenta com is_verified; se a coluna ainda não existir na view, cai p/ só o nome.
+          let res = await withTimeout(
+            supabase.from('user_public').select('id, username, is_verified').in('id', userIds), 8_000,
+          ) as { data: { id: string; username: string; is_verified?: boolean }[] | null; error: unknown }
+          if (res.error) {
+            res = await withTimeout(
+              supabase.from('user_public').select('id, username').in('id', userIds), 8_000,
+            ) as { data: { id: string; username: string; is_verified?: boolean }[] | null; error: unknown }
+          }
+          const us = res.data
+          if (us) for (const u of us) { nameMap[u.id] = u.username; if (u.is_verified) verifiedMap[u.id] = true }
         } catch { /* non-fatal — fall back to generic name */ }
       }
 
       if (myReq !== reqIdRef.current) return // superseded
-      setItems(rows.map(r => normalize(r, nameMap[r.user_id as string])))
+      setItems(rows.map(r => normalize(r, nameMap[r.user_id as string], verifiedMap[r.user_id as string])))
     } catch (e) {
       console.error('[useDemandFeed] fetch falhou/timeout:', e)
       if (myReq === reqIdRef.current) setError(e instanceof Error ? `falha: ${e.message}` : 'falha desconhecida')
