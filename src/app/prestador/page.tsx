@@ -22,7 +22,7 @@ const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toSt
 
 export default function PrestadorPage() {
   const router = useRouter()
-  const { profile: authProfile } = useAuth()
+  const { isAuthenticated } = useAuth()
   const supabase = useRef(createPublicClient()).current
 
   // Optional return target (e.g. coming from "Me candidatar" on a pedido)
@@ -236,7 +236,7 @@ export default function PrestadorPage() {
 
   async function createProfile() {
     if (!profileData) return
-    if (!authProfile?.id) { pendingCreate.current = true; setShowAuth(true); return }
+    if (!isAuthenticated) { pendingCreate.current = true; setShowAuth(true); return }
     setCreating(true); setCreateErr('')
     try {
       // Server-side create (uses the auth cookie) — avoids the browser
@@ -258,13 +258,13 @@ export default function PrestadorPage() {
 
   // After login, finish creating automatically
   useEffect(() => {
-    if (pendingCreate.current && authProfile?.id && profileData) {
+    if (pendingCreate.current && isAuthenticated && profileData) {
       pendingCreate.current = false
       setShowAuth(false)
       createProfile()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authProfile, profileData])
+  }, [isAuthenticated, profileData])
 
   const busy = thinking || uploading
 
@@ -386,7 +386,7 @@ export default function PrestadorPage() {
               style={{ width: '100%', height: 50, borderRadius: 10, border: 'none', background: '#fff', color: '#000', fontSize: 15, fontWeight: 800, cursor: creating ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {creating
                 ? <span style={{ width: 18, height: 18, border: '2px solid #ccc', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
-                : (authProfile?.id ? 'Criar meu perfil grátis' : 'Criar conta e finalizar perfil')}
+                : (isAuthenticated ? 'Criar meu perfil grátis' : 'Criar conta e finalizar perfil')}
             </button>
             <button onClick={() => setProfileData(null)} style={{ width: '100%', marginTop: 8, background: 'none', border: 'none', color: '#666', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
               Ajustar algo na conversa

@@ -35,8 +35,25 @@ export async function POST(req: NextRequest) {
 
   const { data: userRow } = await supabase
     .from('users').select('id').eq('auth_id', user.id).maybeSingle()
-  const userId = (userRow as { id: string } | null)?.id
-  if (!userId) return NextResponse.json({ ok: false, error: 'sem_usuario' }, { status: 400 })
+  let userId = (userRow as { id: string } | null)?.id
+
+  // À prova de corrida: se a linha do usuário ainda não existe (login por WhatsApp
+  // acabou de acontecer), cria agora — em vez de falhar com "sem_usuario".
+  if (!userId) {
+    const username = `usuario_${Math.random().toString(36).slice(2, 8)}`
+    const { data: created, error: cErr } = await supabase.from('users').insert({
+      auth_id:      user.id,
+      username,
+      phone:        user.phone ? user.phone.replace(/\D/g, '') : null,
+      email:        user.email ?? null,
+      is_anonymous: false,
+    }).select('id').maybeSingle()
+    if (cErr || !created) {
+      console.error('[create-profile] criar users falhou:', cErr?.code, cErr?.message)
+      return NextResponse.json({ ok: false, error: 'sem_usuario' }, { status: 400 })
+    }
+    userId = (created as { id: string }).id
+  }
 
   let body: ProfileBody
   try { body = await req.json() }
