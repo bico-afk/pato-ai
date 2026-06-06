@@ -218,20 +218,25 @@ export default function SearchBar({ onSearch, loading }: Props) {
   const finalText = (aiSuggestion.trim() || query.trim())
   const hasPlaceholder = /(^|\s)X(\s|$|,|\.|;)/.test(aiSuggestion)
 
+  const [addrError, setAddrError] = useState(false)
+
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
     if (!finalText) return
+    // Endereço é OBRIGATÓRIO: a pessoa precisa selecionar um endereço da lista
+    // (ou usar a localização). Sem isso, não dá pra casar com profissionais da região.
+    if (!location) { setAddrError(true); return }
     const urls = medias.filter(m => m.url).map(m => m.url as string)
     const title = aiTitle.trim() || deriveTitle(finalText)
     onSearch(finalText, location, urls, title)
   }
 
-  const canSubmit = finalText.length > 0 && !loading && medias.every(m => !m.uploading)
+  const canSubmit = finalText.length > 0 && !!location && !loading && medias.every(m => !m.uploading)
 
   return (
     <form onSubmit={handleSubmit} style={{ width: '100%', position: 'relative' }}>
       {/* ── Main bar ── */}
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, background: '#111', border: '1px solid #333', borderRadius: 8, overflow: 'hidden', width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, background: '#111', border: `1px solid ${addrError && !location ? '#ef4444' : '#333'}`, borderRadius: 8, overflow: 'hidden', width: '100%' }}>
 
         {/* Address field + autocomplete */}
         <div style={{ position: 'relative', flexShrink: 0, width: 220, borderRight: '1px solid #1e1e1e', display: 'flex', alignItems: 'center' }}>
@@ -242,10 +247,10 @@ export default function SearchBar({ onSearch, loading }: Props) {
           <input
             type="text"
             value={addr}
-            onChange={e => { typedRef.current = true; setAddr(e.target.value); setLocation(null) }}
+            onChange={e => { typedRef.current = true; setAddr(e.target.value); setLocation(null); setAddrError(false) }}
             onFocus={() => suggestions.length && setShowDrop(true)}
             onBlur={() => setTimeout(() => setShowDrop(false), 150)}
-            placeholder="Seu endereço"
+            placeholder="Seu endereço *"
             style={{ flex: 1, minWidth: 0, height: 56, background: 'transparent', border: 'none', color: location ? '#00d4ff' : '#aaa', fontSize: 13, padding: '0 8px 0 0', outline: 'none' }}
           />
         </div>
@@ -285,6 +290,13 @@ export default function SearchBar({ onSearch, loading }: Props) {
             </button>
           ))}
         </div>
+      )}
+
+      {/* Aviso de endereço obrigatório */}
+      {addrError && !location && (
+        <p style={{ fontSize: 12.5, color: '#ef4444', marginTop: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+          📍 Informe seu endereço e <strong>toque numa sugestão da lista</strong> para publicar.
+        </p>
       )}
 
       {/* Privacy note */}
