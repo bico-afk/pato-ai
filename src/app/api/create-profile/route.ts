@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit, clientIp, tooMany } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 
-/* Creates/updates the logged-in user's professional profile.
-   Runs server-side using the auth cookie — avoids the browser session-client
-   lock deadlock that hangs writes. RLS still applies (acts as the user). */
+/* Cria/atualiza o perfil profissional do usuário logado.
+   Identidade: lida pelo COOKIE de auth (getUser). Gravações: feitas com a
+   SERVICE ROLE (ignora RLS) — seguro porque tudo é escopado ao userId do
+   próprio usuário já verificado. Isso evita qualquer trava de RLS no caminho. */
 
 interface ProfileBody {
   nome?:          string
@@ -24,24 +26,32 @@ interface ProfileBody {
   audioUrl?:      string
 }
 
+function admin() {
+  return createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  )
+}
+
 export async function POST(req: NextRequest) {
   const rl = rateLimit(`profile:${clientIp(req)}`, 10, 60_000)
   if (!rl.ok) return tooMany(rl.retryAfter)
 
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
+  // 1) Identifica quem está logado (pelo cookie)
+  const cookieClient = await createClient()
+  const { data: { user } } = await cookieClient.auth.getUser()
   if (!user) return NextResponse.json({ ok: false, error: 'nao_autenticado' }, { status: 401 })
 
-  const { data: userRow } = await supabase
-    .from('users').select('id').eq('auth_id', user.id).maybeSingle()
+  // 2) Daqui pra frente, grava com a service role (sem RLS no meio)
+  const db = admin()
+
+  const { data: userRow } = await db.from('users').select('id').eq('auth_id', user.id).maybeSingle()
   let userId = (userRow as { id: string } | null)?.id
 
-  // À prova de corrida: se a linha do usuário ainda não existe (login por WhatsApp
-  // acabou de acontecer), cria agora — em vez de falhar com "sem_usuario".
   if (!userId) {
     const username = `usuario_${Math.random().toString(36).slice(2, 8)}`
-    const { data: created, error: cErr } = await supabase.from('users').insert({
+    const { data: created, error: cErr } = await db.from('users').insert({
       auth_id:      user.id,
       username,
       phone:        user.phone ? user.phone.replace(/\D/g, '') : null,
@@ -71,22 +81,18 @@ export async function POST(req: NextRequest) {
   const portfolio = (portfolioUrls ?? []).filter(u => typeof u === 'string' && u).slice(0, 6)
 
   try {
-    // 1) basic user info (incl. WhatsApp + foto de perfil)
-    await supabase.from('users').update({
+    // 1) dados básicos do usuário (nome, bio, foto, whatsapp, selo)
+    const { error: uErr } = await db.from('users').update({
       full_name:          nome,
       bio:                bio ?? null,
       ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       ...(phone ? { phone, phone_country_code: '+55' } : {}),
+      ...(cpfNum ? { is_verified: true } : {}),
     }).eq('id', userId)
+    if (uErr) console.error('[create-profile] users update:', uErr.code, uErr.message)
 
-    // 1b) selo "verificado" quando há CPF (best-effort: ignora se a coluna
-    //     ainda não existir no banco — ver SQL de is_verified).
-    if (cpfNum) {
-      await supabase.from('users').update({ is_verified: true }).eq('id', userId)
-    }
-
-    // 2) professional profile (insert or update)
-    const { data: existing } = await supabase
+    // 2) perfil profissional (insert ou update)
+    const { data: existing } = await db
       .from('professional_profiles').select('id').eq('user_id', userId).maybeSingle()
 
     const payload = {
@@ -103,24 +109,23 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = existing
-      ? await supabase.from('professional_profiles').update(payload).eq('id', (existing as { id: string }).id)
-      : await supabase.from('professional_profiles').insert(payload)
+      ? await db.from('professional_profiles').update(payload).eq('id', (existing as { id: string }).id)
+      : await db.from('professional_profiles').insert(payload)
 
     if (error) {
-      console.error('[create-profile] db error:', error.code, error.message)
+      console.error('[create-profile] pp error:', error.code, error.message)
       return NextResponse.json({ ok: false, error: error.message ?? 'db_error' }, { status: 400 })
     }
 
-    // 3) verificação (CPF/RG) — tabela PRIVADA, só o dono lê. Upsert.
+    // 3) verificação (CPF/RG) — privado
     if (cpfNum || rgNum) {
-      const { error: vErr } = await supabase.from('user_verification').upsert({
+      const { error: vErr } = await db.from('user_verification').upsert({
         user_id:    userId,
         cpf:        cpfNum,
         rg:         rgNum,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
       if (vErr) console.error('[create-profile] verification error:', vErr.code, vErr.message)
-      // não falha o cadastro inteiro se a verificação não gravar
     }
 
     return NextResponse.json({ ok: true })
