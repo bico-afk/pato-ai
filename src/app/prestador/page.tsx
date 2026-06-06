@@ -250,7 +250,8 @@ export default function PrestadorPage() {
       router.push(next)
     } catch (e) {
       console.error('[prestador] create profile', e)
-      setCreateErr('Não foi possível criar agora. Tente novamente.')
+      const msg = e instanceof Error ? e.message : ''
+      setCreateErr(msg ? `Não foi possível salvar: ${msg}` : 'Não foi possível criar agora. Tente novamente.')
     } finally {
       setCreating(false)
     }
