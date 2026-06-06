@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { matchDemand, type DemandRow } from '@/lib/match/matchDemand'
+import { rateLimit, clientIp, tooMany } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 
@@ -20,6 +21,10 @@ function db() {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit (defesa: o gatilho interno usa x-internal; limita abuso por IP)
+  const rl = rateLimit(`notify:${clientIp(req)}`, 20, 60_000)
+  if (!rl.ok) return tooMany(rl.retryAfter)
+
   // Verifica segredo do webhook (se configurado)
   const secret = (process.env.NOTIFY_SECRET ?? '').trim()
   if (secret) {
