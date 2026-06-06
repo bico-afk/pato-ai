@@ -85,9 +85,11 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ ok: false, error: 'sem_api_key' }, { status: 500 })
 
   let messages: Msg[] = []
+  let demandContext = ''
   try {
     const body = await req.json()
     messages = (body.messages ?? []).filter((m: Msg) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
+    demandContext = typeof body.demandContext === 'string' ? body.demandContext.slice(0, 600) : ''
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
   }
@@ -97,10 +99,23 @@ export async function POST(req: NextRequest) {
 
   try {
     const claude = new Anthropic({ apiKey })
+    const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
+      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+    ]
+    if (demandContext) {
+      systemBlocks.push({
+        type: 'text',
+        text:
+          `CONTEXTO IMPORTANTE: a pessoa acabou de se candidatar a este pedido na Bikco:\n"${demandContext}"\n\n` +
+          `Comece a conversa reconhecendo isso de forma calorosa (ex.: "Vi que você se candidatou ao pedido X!"), ` +
+          `e pergunte logo se ela já tem EXPERIÊNCIA com esse tipo de serviço e com o que mais ela trabalha. ` +
+          `Use o tipo de serviço do pedido como a primeira habilidade do perfil. Siga coletando o resto normalmente.`,
+      })
+    }
     const res = await claude.messages.create({
       model: 'claude-opus-4-8',
       max_tokens: 600,
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      system: systemBlocks,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
     })
 

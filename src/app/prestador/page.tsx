@@ -32,6 +32,24 @@ export default function PrestadorPage() {
     const params = new URLSearchParams(window.location.search)
     const n = params.get('next')
     if (n) setNext(n)
+
+    // Veio de "Tenho interesse" num pedido (?demand=ID) → IA inicia falando do pedido.
+    const demandId = params.get('demand')
+    if (demandId) {
+      ;(async () => {
+        try {
+          const { data } = await supabase.from('demands').select('title, description').eq('id', demandId).maybeSingle()
+          if (data) {
+            const d = data as { title: string | null; description: string | null }
+            const titulo = d.title || (d.description ?? '').slice(0, 70) || 'esse pedido'
+            setDemandCtx(`${d.title ?? ''}${d.description ? ' — ' + d.description : ''}`.trim().slice(0, 400))
+            setMessages([{ role: 'assistant', content:
+              `Boa! 🎯 Vi que você se candidatou ao pedido:\n\n"${titulo}"\n\nMe conta: você já tem experiência com esse tipo de serviço? E com o que mais você manja?` }])
+          }
+        } catch { /* mantém saudação padrão */ }
+      })()
+    }
+
     // Veio do chat do canto da landing (?skill=...) → já manda como 1ª mensagem.
     const skill = params.get('skill')
     if (skill && skill.trim() && !skillSentRef.current) {
@@ -45,6 +63,7 @@ export default function PrestadorPage() {
   const [input,    setInput]    = useState('')
   const [thinking, setThinking] = useState(false)
   const [options,  setOptions]  = useState<string[]>([])
+  const [demandCtx, setDemandCtx] = useState('')   // contexto do pedido (quando veio de "Tenho interesse")
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
   const [showAuth, setShowAuth] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -76,7 +95,10 @@ export default function PrestadorPage() {
     try {
       const res = await fetch('/api/onboarding-chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updated.map(m => ({ role: m.role, content: m.content })) }),
+        body: JSON.stringify({
+          messages: updated.map(m => ({ role: m.role, content: m.content })),
+          demandContext: demandCtx || undefined,
+        }),
       })
       const json = await res.json()
       if (!json.ok) throw new Error(json.error ?? 'erro')

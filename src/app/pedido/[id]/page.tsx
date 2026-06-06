@@ -228,7 +228,7 @@ export default function PedidoPage() {
   function startApply() {
     if (isOwner || demand?.status !== 'open') return
     if (!authUserId || !hasProfile) {
-      router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}?interesse=1`)}`)
+      router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}?interesse=1`)}&demand=${id}`)
       return
     }
     setShowApply(true)
@@ -244,7 +244,7 @@ export default function PedidoPage() {
     const myId = profile?.id ?? null
     if (!myId) {                           // não logado → vai direto pro chat de cadastro
       triggeredRef.current = true
-      router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}?interesse=1`)}`)
+      router.push(`/prestador?next=${encodeURIComponent(`/pedido/${id}?interesse=1`)}&demand=${id}`)
       return
     }
     if (!profileChecked) return            // logado → espera saber se já tem perfil
