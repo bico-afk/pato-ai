@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useLanding } from './LandingProvider'
 
 /* Faixa de categorias (estilo Airtasker) — mostra a amplitude da Bikco. */
@@ -18,6 +19,7 @@ const CATS: { emoji: string; key: string }[] = [
 
 export default function CategoryChips() {
   const { c, t } = useLanding()
+  const router = useRouter()
   return (
     <section style={{ background: c.bg, padding: '8px 20px 40px' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto', textAlign: 'center' }}>
@@ -26,10 +28,13 @@ export default function CategoryChips() {
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
           {CATS.map((cat, i) => (
-            <span key={i}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 600, color: c.text, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 99, padding: '9px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+            <button key={i} type="button"
+              onClick={() => router.push(`/nova-demanda?q=${encodeURIComponent(t(cat.key))}`)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 600, color: c.text, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 99, padding: '9px 15px', cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color 0.15s, transform 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = c.amber; e.currentTarget.style.transform = 'translateY(-1px)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = c.border; e.currentTarget.style.transform = 'none' }}>
               <span style={{ fontSize: 16 }}>{cat.emoji}</span>{t(cat.key)}
-            </span>
+            </button>
           ))}
         </div>
       </div>

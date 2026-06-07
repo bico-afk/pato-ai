@@ -1,7 +1,7 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { PALETTES, type Theme, type Palette, type Lang } from '@/lib/landing/i18n'
+import { createContext, useContext, useMemo } from 'react'
+import { type Theme, type Palette, type Lang } from '@/lib/landing/i18n'
 import { useLang } from '@/components/Lang/LangProvider'
 
 interface Ctx {
@@ -23,26 +23,12 @@ export function useLanding(): Ctx {
 }
 
 export default function LandingProvider({ children }: { children: React.ReactNode }) {
-  // Idioma vem do provider GLOBAL (fonte única). Tema é local da landing.
-  const { lang, setLang, t } = useLang()
-  const [theme, setTheme] = useState<Theme>('light')
-
-  useEffect(() => {
-    try {
-      const st = localStorage.getItem('bikco_theme') as Theme | null
-      if (st === 'dark' || st === 'light') setTheme(st)
-    } catch { /* ignore */ }
-  }, [])
-
-  useEffect(() => { try { localStorage.setItem('bikco_theme', theme) } catch {} }, [theme])
+  // Idioma E tema vêm do provider GLOBAL (fonte única).
+  const { lang, setLang, t, theme, setTheme, toggleTheme, c } = useLang()
 
   const value = useMemo<Ctx>(() => ({
-    theme, lang,
-    c: PALETTES[theme],
-    t, setLang,
-    setTheme,
-    toggleTheme: () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark')),
-  }), [theme, lang, t, setLang])
+    theme, lang, c, t, setTheme, setLang, toggleTheme,
+  }), [theme, lang, c, t, setTheme, setLang, toggleTheme])
 
   return <LandingCtx.Provider value={value}>{children}</LandingCtx.Provider>
 }

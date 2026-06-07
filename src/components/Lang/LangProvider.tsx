@@ -1,16 +1,19 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { translate, type Lang } from '@/lib/landing/i18n'
+import { translate, PALETTES, type Lang, type Theme, type Palette } from '@/lib/landing/i18n'
 
-/* Provider GLOBAL de idioma (envolve o app inteiro no layout).
-   Fonte única do idioma — landing, navbar e páginas internas leem daqui.
-   Persiste em localStorage + cookie (para o servidor/IA quando precisar). */
+/* Provider GLOBAL de idioma + tema (envolve o app inteiro no layout).
+   Fonte única — landing, navbar, barra de publicar e páginas leem daqui. */
 
 interface Ctx {
   lang: Lang
   setLang: (l: Lang) => void
   t: (key: string) => string
+  theme: Theme
+  setTheme: (t: Theme) => void
+  toggleTheme: () => void
+  c: Palette
 }
 
 const LangCtx = createContext<Ctx | null>(null)
@@ -24,14 +27,19 @@ export function useLang(): Ctx {
 const NAV_MAP: Record<string, Lang> = { pt: 'pt', en: 'en', es: 'es', zh: 'zh', de: 'de', fr: 'fr', it: 'it' }
 
 export default function LangProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLang] = useState<Lang>('pt')
+  const [lang, setLang]   = useState<Lang>('pt')
+  const [theme, setTheme] = useState<Theme>('light')
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('bikco_lang') as Lang | null
-      if (saved && NAV_MAP[saved]) { setLang(saved); return }
-      const nav = (navigator.language || 'pt').slice(0, 2).toLowerCase()
-      if (NAV_MAP[nav]) setLang(NAV_MAP[nav])
+      const savedLang = localStorage.getItem('bikco_lang') as Lang | null
+      if (savedLang && NAV_MAP[savedLang]) setLang(savedLang)
+      else {
+        const nav = (navigator.language || 'pt').slice(0, 2).toLowerCase()
+        if (NAV_MAP[nav]) setLang(NAV_MAP[nav])
+      }
+      const savedTheme = localStorage.getItem('bikco_theme') as Theme | null
+      if (savedTheme === 'dark' || savedTheme === 'light') setTheme(savedTheme)
     } catch { /* ignore */ }
   }, [])
 
@@ -42,9 +50,15 @@ export default function LangProvider({ children }: { children: React.ReactNode }
     } catch { /* ignore */ }
   }, [lang])
 
+  useEffect(() => { try { localStorage.setItem('bikco_theme', theme) } catch {} }, [theme])
+
   const value = useMemo<Ctx>(() => ({
-    lang, setLang, t: (key: string) => translate(lang, key),
-  }), [lang])
+    lang, setLang,
+    t: (key: string) => translate(lang, key),
+    theme, setTheme,
+    toggleTheme: () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark')),
+    c: PALETTES[theme],
+  }), [lang, theme])
 
   return <LangCtx.Provider value={value}>{children}</LangCtx.Provider>
 }

@@ -51,9 +51,15 @@ const PLACEHOLDERS = [
 ]
 
 export default function SearchBar({ onSearch, loading }: Props) {
-  const { lang } = useLang()
+  const { lang, c } = useLang()
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Pré-preenche a busca quando vem de uma categoria (/nova-demanda?q=Eletricista)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) setQuery(q.slice(0, 120))
+  }, [])
 
   // Placeholder que cicla exemplos a cada 2,5s — pausa ao digitar.
   const [phIdx, setPhIdx] = useState(0)
@@ -238,12 +244,12 @@ export default function SearchBar({ onSearch, loading }: Props) {
   return (
     <form onSubmit={handleSubmit} style={{ width: '100%', position: 'relative' }}>
       {/* ── Main bar ── */}
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, background: '#111', border: `1px solid ${addrError && !location ? '#ef4444' : '#333'}`, borderRadius: 8, overflow: 'hidden', width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, background: c.surface, border: `1px solid ${addrError && !location ? '#ef4444' : c.border}`, borderRadius: 10, overflow: 'hidden', width: '100%', boxShadow: '0 4px 18px rgba(20,10,0,0.06)' }}>
 
         {/* Address field + autocomplete */}
-        <div style={{ position: 'relative', flexShrink: 0, width: 220, borderRight: '1px solid #1e1e1e', display: 'flex', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flexShrink: 0, width: 220, borderRight: `1px solid ${c.border}`, display: 'flex', alignItems: 'center' }}>
           <button type="button" onClick={useMyLocation} title="Usar minha localização"
-            style={{ flexShrink: 0, height: 56, width: 40, background: 'transparent', border: 'none', color: geoLoading ? '#00d4ff' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            style={{ flexShrink: 0, height: 56, width: 40, background: 'transparent', border: 'none', color: geoLoading ? c.amber : c.text2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <PinIcon spinning={geoLoading} />
           </button>
           <input
@@ -253,7 +259,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
             onFocus={() => suggestions.length && setShowDrop(true)}
             onBlur={() => setTimeout(() => setShowDrop(false), 150)}
             placeholder="Seu endereço *"
-            style={{ flex: 1, minWidth: 0, height: 56, background: 'transparent', border: 'none', color: location ? '#00d4ff' : '#aaa', fontSize: 13, padding: '0 8px 0 0', outline: 'none' }}
+            style={{ flex: 1, minWidth: 0, height: 56, background: 'transparent', border: 'none', color: location ? c.amber : c.text, fontSize: 13, padding: '0 8px 0 0', outline: 'none', fontWeight: location ? 700 : 400 }}
           />
         </div>
 
@@ -267,12 +273,12 @@ export default function SearchBar({ onSearch, loading }: Props) {
           onKeyDown={e => e.key === 'Enter' && handleSubmit()}
           placeholder={`Ex: ${PLACEHOLDERS[phIdx]}…`}
           autoFocus
-          style={{ flex: 1, height: 56, minWidth: 0, background: 'transparent', border: 'none', color: '#fff', fontSize: 15, padding: '0 16px', outline: 'none' }}
+          style={{ flex: 1, height: 56, minWidth: 0, background: 'transparent', border: 'none', color: c.text, fontSize: 15, padding: '0 16px', outline: 'none' }}
         />
 
         {/* Submit */}
         <button type="submit" disabled={!canSubmit}
-          style={{ flexShrink: 0, height: 56, padding: '0 24px', background: canSubmit ? '#FF6A00' : '#1a1a1a', border: 'none', color: canSubmit ? '#fff' : '#333', fontSize: 14, fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'all 0.15s', boxShadow: canSubmit ? '0 0 20px rgba(255,106,0,0.3)' : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ flexShrink: 0, height: 56, padding: '0 24px', background: canSubmit ? '#FF6A00' : c.bgSoft, border: 'none', color: canSubmit ? '#fff' : c.text2, fontSize: 14, fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'all 0.15s', boxShadow: canSubmit ? '0 0 20px rgba(255,106,0,0.3)' : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
           {loading
             ? <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
             : 'Publicar'}
@@ -281,14 +287,14 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
       {/* Address suggestions — rendered OUTSIDE the bar so overflow:hidden can't clip it */}
       {showDrop && suggestions.length > 0 && (
-        <div style={{ position: 'absolute', top: 60, left: 0, width: 380, maxWidth: '100%', background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: 10, zIndex: 60, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.75)' }}>
+        <div style={{ position: 'absolute', top: 60, left: 0, width: 380, maxWidth: '100%', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 10, zIndex: 60, overflow: 'hidden', boxShadow: '0 12px 40px rgba(20,10,0,0.18)' }}>
           {suggestions.map(s => (
             <button key={s.placeId} type="button" onMouseDown={() => selectSuggestion(s)}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '11px 14px', background: 'none', border: 'none', borderBottom: '1px solid #1a1a1a', cursor: 'pointer', fontFamily: 'inherit' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#161616')}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '11px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${c.border}`, cursor: 'pointer', fontFamily: 'inherit' }}
+              onMouseEnter={e => (e.currentTarget.style.background = c.bgSoft)}
               onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-              <span style={{ display: 'block', fontSize: 13, color: '#fff', fontWeight: 600 }}>📍 {s.main}</span>
-              {s.sub && <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>{s.sub}</span>}
+              <span style={{ display: 'block', fontSize: 13, color: c.text, fontWeight: 600 }}>📍 {s.main}</span>
+              {s.sub && <span style={{ display: 'block', fontSize: 11, color: c.text2, marginTop: 2 }}>{s.sub}</span>}
             </button>
           ))}
         </div>
@@ -302,9 +308,9 @@ export default function SearchBar({ onSearch, loading }: Props) {
       )}
 
       {/* Privacy note */}
-      <p style={{ fontSize: 12, color: '#666', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12, color: c.text2, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.5 }}>
         <span style={{ flexShrink: 0 }}>🔒</span>
-        Não se preocupe — seu endereço é totalmente anônimo. Deixamos visível apenas a sua <strong style={{ color: '#999', fontWeight: 600 }}>cidade</strong>.
+        Não se preocupe — seu endereço é totalmente anônimo. Deixamos visível apenas a sua <strong style={{ color: c.text, fontWeight: 700 }}>cidade</strong>.
       </p>
 
       {/* ── Fotos / vídeos ── */}
@@ -330,9 +336,9 @@ export default function SearchBar({ onSearch, loading }: Props) {
         {medias.length < MAX_FILES && (
           <>
             <button type="button" onClick={() => fileRef.current?.click()}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #333', borderRadius: 8, color: '#666', fontSize: 13, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#999' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666' }}>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: `1px dashed ${c.border}`, borderRadius: 8, color: c.text2, fontSize: 13, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = c.amber; e.currentTarget.style.color = c.text }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = c.border; e.currentTarget.style.color = c.text2 }}>
               📎 Adicionar foto ou vídeo
             </button>
             <input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" multiple style={{ display: 'none' }}
@@ -344,21 +350,21 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
       {/* ── Sugestão da IA — aparece sozinha e é editável ── */}
       {(query.trim().length >= 12 || aiSuggestion || aiLoading) && (
-        <div style={{ background: '#0b1a1f', border: '1px solid rgba(0,212,255,0.25)', borderRadius: 10, padding: '14px 16px', marginTop: 14 }}>
+        <div style={{ background: `${c.amber}0d`, border: `1px solid ${c.amber}40`, borderRadius: 10, padding: '14px 16px', marginTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-            <span style={{ fontSize: 11, color: '#00d4ff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ fontSize: 11, color: c.amber, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 7 }}>
               ✨ Descrição sugerida pela IA
-              {aiLoading && <span style={{ width: 12, height: 12, border: '2px solid rgba(0,212,255,0.3)', borderTopColor: '#00d4ff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />}
+              {aiLoading && <span style={{ width: 12, height: 12, border: `2px solid ${c.amber}33`, borderTopColor: c.amber, borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />}
             </span>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
               <button type="button" onClick={replaceWithAI} disabled={aiLoading || !aiSuggestion.trim()}
                 title="Substituir o que você digitou pelo texto da IA"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: aiSuggestion.trim() ? '#fff' : '#1a1a1a', border: 'none', borderRadius: 7, padding: '5px 11px', color: aiSuggestion.trim() ? '#000' : '#444', fontSize: 12, fontWeight: 800, cursor: aiLoading || !aiSuggestion.trim() ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: aiSuggestion.trim() ? c.amber : c.bgSoft, border: 'none', borderRadius: 7, padding: '5px 11px', color: aiSuggestion.trim() ? '#fff' : c.text2, fontSize: 12, fontWeight: 800, cursor: aiLoading || !aiSuggestion.trim() ? 'default' : 'pointer', fontFamily: 'inherit' }}>
                 ⬆ Substituir
               </button>
               <button type="button" onClick={() => refineWithAI(query.trim())} disabled={aiLoading || query.trim().length < 10}
                 title="Gerar uma nova sugestão a partir do que você digitou"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid #234', borderRadius: 7, padding: '5px 10px', color: query.trim().length < 10 ? '#345' : '#00d4ff', fontSize: 12, fontWeight: 600, cursor: aiLoading || query.trim().length < 10 ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${c.border}`, borderRadius: 7, padding: '5px 10px', color: query.trim().length < 10 ? c.text2 : c.amber, fontSize: 12, fontWeight: 600, cursor: aiLoading || query.trim().length < 10 ? 'default' : 'pointer', fontFamily: 'inherit' }}>
                 ↻ Gerar de novo
               </button>
             </div>
@@ -369,7 +375,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
             onChange={e => { setAiSuggestion(e.target.value); suggestionEditedRef.current = true; e.target.style.height = 'auto'; e.target.style.height = Math.max(e.target.scrollHeight, 80) + 'px' }}
             placeholder={aiLoading ? 'Gerando uma descrição mais completa…' : 'A IA vai escrever um texto aqui. Você pode editar à vontade.'}
             rows={4}
-            style={{ width: '100%', minHeight: 80, background: '#06141a', border: '1px solid rgba(0,212,255,0.18)', borderRadius: 8, color: '#fff', fontSize: 14, lineHeight: 1.6, padding: '11px 13px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            style={{ width: '100%', minHeight: 80, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 8, color: c.text, fontSize: 14, lineHeight: 1.6, padding: '11px 13px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
           />
 
           <p style={{ fontSize: 12, color: hasPlaceholder ? '#fbbf24' : '#5b7', marginTop: 8, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
@@ -384,13 +390,13 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
       {/* ── Secondary links ── */}
       <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-        <a href="/prestador" style={{ fontSize: 13, color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#888')} onMouseLeave={e => (e.currentTarget.style.color = '#555')}>
+        <a href="/prestador" style={{ fontSize: 13, color: c.text2, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}
+          onMouseEnter={e => (e.currentTarget.style.color = c.amber)} onMouseLeave={e => (e.currentTarget.style.color = c.text2)}>
           Quero oferecer um serviço →
         </a>
         <a href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? ''}`} target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: 13, color: '#555', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#888')} onMouseLeave={e => (e.currentTarget.style.color = '#555')}>
+          style={{ fontSize: 13, color: c.text2, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}
+          onMouseEnter={e => (e.currentTarget.style.color = c.amber)} onMouseLeave={e => (e.currentTarget.style.color = c.text2)}>
           Prefiro pelo WhatsApp →
         </a>
       </div>
@@ -398,8 +404,8 @@ export default function SearchBar({ onSearch, loading }: Props) {
       <style>{`
         @media (max-width: 600px) {
           form > div:first-child { flex-wrap: wrap; }
-          form > div:first-child > div:first-child { width: 100% !important; border-right: none !important; border-bottom: 1px solid #1e1e1e; }
-          form > div:first-child input.bikco-query { border-bottom: 1px solid #1e1e1e; width: 100%; }
+          form > div:first-child > div:first-child { width: 100% !important; border-right: none !important; border-bottom: 1px solid ${c.border}; }
+          form > div:first-child input.bikco-query { border-bottom: 1px solid ${c.border}; width: 100%; }
           form > div:first-child button[type="submit"] { width: 100% !important; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
