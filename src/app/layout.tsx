@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import Navbar from '@/components/Navbar'
 import PWARegister from '@/components/PWARegister'
+import LangProvider from '@/components/Lang/LangProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -32,9 +33,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className={inter.className}>
       <body style={{ margin: 0, padding: 0, backgroundColor: '#000' }}>
-        <PWARegister />
-        <Navbar />
-        {children}
+        <LangProvider>
+          <PWARegister />
+          <Navbar />
+          {children}
+        </LangProvider>
       </body>
     </html>
   )

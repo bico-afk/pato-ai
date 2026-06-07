@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import imageCompression from 'browser-image-compression'
 import { createPublicClient } from '@/lib/supabase/public'
 import { validateMediaFile } from '@/lib/uploadGuard'
+import { useLang } from '@/components/Lang/LangProvider'
 import type { LocationData } from '@/lib/geo'
 
 interface Props {
@@ -50,6 +51,7 @@ const PLACEHOLDERS = [
 ]
 
 export default function SearchBar({ onSearch, loading }: Props) {
+  const { lang } = useLang()
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -178,7 +180,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
     try {
       const res  = await fetch('/api/refine-demand', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, lang }),
       })
       const json = await res.json()
       if (!res.ok || !json.ok) throw new Error(json.error ?? 'erro')

@@ -5,6 +5,9 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import BikcoDuck from '@/components/landing/BikcoDuck'
+import Flag from '@/components/landing/Flag'
+import { useLang } from '@/components/Lang/LangProvider'
+import { LANGS } from '@/lib/landing/i18n'
 
 const initials = (n: string) =>
   (n ?? '').split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?'
@@ -14,15 +17,20 @@ const HEADERLESS = ['/auth', '/onboarding']
 
 export default function Navbar() {
   const { isAuthenticated, profile, loading, signOut } = useAuth()
+  const { lang, setLang, t } = useLang()
   const router   = useRouter()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
   const dropRef = useRef<HTMLDivElement>(null)
+  const langRef = useRef<HTMLDivElement>(null)
+  const currentLang = LANGS.find(l => l.code === lang) ?? LANGS[0]
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function onDown(e: MouseEvent) {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) setOpen(false)
+      if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -57,12 +65,32 @@ export default function Navbar() {
 
       {/* ── Center links ── */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
-        <NavLink href="/feed" active={pathname === '/feed'}>Feed</NavLink>
-        <NavLink href="/nova-demanda" active={pathname === '/nova-demanda'}>Publicar pedido</NavLink>
+        <NavLink href="/feed" active={pathname === '/feed'}>{t('nav_feed')}</NavLink>
+        <NavLink href="/nova-demanda" active={pathname === '/nova-demanda'}>{t('nav_publish')}</NavLink>
       </div>
 
       {/* ── Right ── */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+
+        {/* Seletor de idioma (em todas as páginas) */}
+        <div ref={langRef} style={{ position: 'relative' }}>
+          <button onClick={() => setLangOpen(o => !o)} aria-label="Idioma"
+            style={{ height: 32, display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid #1e1e1e', borderRadius: 99, padding: '0 9px', color: '#bbb', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            <Flag cc={currentLang.cc} size={18} />
+            <span style={{ textTransform: 'uppercase' }}>{currentLang.code}</span>
+          </button>
+          {langOpen && (
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 200, background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 12, padding: 6, minWidth: 180, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
+              {LANGS.map(l => (
+                <button key={l.code} onClick={() => { setLang(l.code); setLangOpen(false) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', background: l.code === lang ? 'rgba(0,212,255,0.1)' : 'none', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', color: '#ddd', fontSize: 13, fontWeight: l.code === lang ? 700 : 500, fontFamily: 'inherit' }}>
+                  <Flag cc={l.cc} size={20} />{l.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#111' }} />
         ) : !isAuthenticated ? (
@@ -72,7 +100,7 @@ export default function Navbar() {
             fontSize: 13, fontWeight: 700, textDecoration: 'none',
             display: 'flex', alignItems: 'center',
           }}>
-            Entrar
+            {t('nav_login')}
           </Link>
         ) : (
           <div ref={dropRef} style={{ position: 'relative' }}>

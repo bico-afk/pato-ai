@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit, clientIp, tooMany } from '@/lib/rateLimit'
+import { LANG_NAMES, type Lang } from '@/lib/landing/i18n'
 
 export const runtime = 'nodejs' // ensure access to process.env (server-side only)
 
@@ -40,13 +41,14 @@ export async function POST(req: NextRequest) {
   const rl = rateLimit(`refine:${clientIp(req)}`, 20, 60_000)
   if (!rl.ok) return tooMany(rl.retryAfter)
 
-  let body: { text?: string }
+  let body: { text?: string; lang?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
   }
 
+  const lang: Lang = (body.lang && LANG_NAMES[body.lang as Lang]) ? (body.lang as Lang) : 'pt'
   const text = (body.text ?? '').trim()
   if (text.length < MIN_CHARS) {
     return NextResponse.json({ ok: false, error: 'texto_curto' }, { status: 400 })
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 300,
       system: [
         { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+        ...(lang !== 'pt' ? [{ type: 'text' as const, text: `Responda em ${LANG_NAMES[lang]} (a pessoa fala esse idioma). Use o "X" como placeholder igual, mas todo o texto em ${LANG_NAMES[lang]}.` }] : []),
       ],
       messages: [{ role: 'user', content: input }],
     })

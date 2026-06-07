@@ -1,7 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { PALETTES, translate, type Lang, type Theme, type Palette } from '@/lib/landing/i18n'
+import { PALETTES, type Theme, type Palette, type Lang } from '@/lib/landing/i18n'
+import { useLang } from '@/components/Lang/LangProvider'
 
 interface Ctx {
   theme: Theme
@@ -22,34 +23,26 @@ export function useLanding(): Ctx {
 }
 
 export default function LandingProvider({ children }: { children: React.ReactNode }) {
+  // Idioma vem do provider GLOBAL (fonte única). Tema é local da landing.
+  const { lang, setLang, t } = useLang()
   const [theme, setTheme] = useState<Theme>('dark')
-  const [lang,  setLang]  = useState<Lang>('pt')
 
-  // Lê preferências salvas no client (evita mismatch de hidratação).
   useEffect(() => {
     try {
       const st = localStorage.getItem('bikco_theme') as Theme | null
-      const sl = localStorage.getItem('bikco_lang') as Lang | null
       if (st === 'dark' || st === 'light') setTheme(st)
-      if (sl) setLang(sl)
-      else {
-        const nav = navigator.language.slice(0, 2)
-        const map: Record<string, Lang> = { pt: 'pt', en: 'en', es: 'es', zh: 'zh', de: 'de', fr: 'fr', it: 'it' }
-        if (map[nav]) setLang(map[nav])
-      }
     } catch { /* ignore */ }
   }, [])
 
   useEffect(() => { try { localStorage.setItem('bikco_theme', theme) } catch {} }, [theme])
-  useEffect(() => { try { localStorage.setItem('bikco_lang', lang) } catch {} }, [lang])
 
   const value = useMemo<Ctx>(() => ({
     theme, lang,
     c: PALETTES[theme],
-    t: (key: string) => translate(lang, key),
-    setTheme, setLang,
-    toggleTheme: () => setTheme(t => (t === 'dark' ? 'light' : 'dark')),
-  }), [theme, lang])
+    t, setLang,
+    setTheme,
+    toggleTheme: () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark')),
+  }), [theme, lang, t, setLang])
 
   return <LandingCtx.Provider value={value}>{children}</LandingCtx.Provider>
 }

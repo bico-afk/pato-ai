@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit, clientIp, tooMany } from '@/lib/rateLimit'
+import { LANG_NAMES, type Lang } from '@/lib/landing/i18n'
 
 export const runtime = 'nodejs'
 
@@ -89,10 +90,12 @@ export async function POST(req: NextRequest) {
 
   let messages: Msg[] = []
   let demandContext = ''
+  let lang: Lang = 'pt'
   try {
     const body = await req.json()
     messages = (body.messages ?? []).filter((m: Msg) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
     demandContext = typeof body.demandContext === 'string' ? body.demandContext.slice(0, 600) : ''
+    if (body.lang && LANG_NAMES[body.lang as Lang]) lang = body.lang as Lang
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
   }
@@ -105,6 +108,14 @@ export async function POST(req: NextRequest) {
     const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
       { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
     ]
+    if (lang !== 'pt') {
+      systemBlocks.push({
+        type: 'text',
+        text: `IMPORTANTE: responda SEMPRE em ${LANG_NAMES[lang]}. A pessoa fala esse idioma. ` +
+          `Mantenha o formato dos blocos <OPTIONS> e <PROFILE> exatamente como definido (tags em inglês), ` +
+          `mas todo o TEXTO visível (perguntas, opções, bio) deve estar em ${LANG_NAMES[lang]}.`,
+      })
+    }
     if (demandContext) {
       systemBlocks.push({
         type: 'text',

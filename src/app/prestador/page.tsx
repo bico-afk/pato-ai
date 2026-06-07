@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import imageCompression from 'browser-image-compression'
 import { useAuth } from '@/hooks/useAuth'
+import { useLang } from '@/components/Lang/LangProvider'
 import { createPublicClient } from '@/lib/supabase/public'
 import { validateMediaFile } from '@/lib/uploadGuard'
 import AuthForm from '@/components/auth/AuthForm'
@@ -23,6 +24,7 @@ const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toSt
 export default function PrestadorPage() {
   const router = useRouter()
   const { isAuthenticated } = useAuth()
+  const { lang } = useLang()
   const supabase = useRef(createPublicClient()).current
 
   // Optional return target (e.g. coming from "Me candidatar" on a pedido)
@@ -98,6 +100,7 @@ export default function PrestadorPage() {
         body: JSON.stringify({
           messages: updated.map(m => ({ role: m.role, content: m.content })),
           demandContext: demandCtx || undefined,
+          lang,
         }),
       })
       const json = await res.json()

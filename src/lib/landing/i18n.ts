@@ -4,6 +4,17 @@
 export type Lang = 'pt' | 'en' | 'es' | 'zh' | 'de' | 'fr' | 'it'
 export type Theme = 'dark' | 'light'
 
+/** Nome do idioma para instruir a IA a responder nele. */
+export const LANG_NAMES: Record<Lang, string> = {
+  pt: 'português do Brasil',
+  en: 'English',
+  es: 'español',
+  zh: '中文 (Mandarim)',
+  de: 'Deutsch',
+  fr: 'français',
+  it: 'italiano',
+}
+
 export const LANGS: { code: Lang; label: string; cc: string }[] = [
   { code: 'pt', label: 'Português', cc: 'br' },
   { code: 'en', label: 'English',   cc: 'us' },
