@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
 
 /* ───────────────────────────────────────────────────────────────
    Motor de matching da Bikco (visão #2):
@@ -31,6 +32,44 @@ function skillsMatch(text: string, skills: string[]): boolean {
     const s = normalize(skill)
     return s.length >= 3 && text.includes(s)
   })
+}
+
+/* IA: entende o pedido e expande para as PROFISSÕES/HABILIDADES que poderiam
+   atender. Ex.: "torneira pingando" → ["encanador","hidraulica","reparos"].
+   Falha graciosa (retorna []) se não houver chave ou der erro — aí cai no
+   matching literal por palavra. Uma chamada por pedido (barato, idempotente). */
+async function expandDemandToSkills(title: string, description: string): Promise<string[]> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return []
+  const input = `${title ?? ''}\n${description ?? ''}`.trim().slice(0, 700)
+  if (input.length < 4) return []
+  try {
+    const claude = new Anthropic({ apiKey })
+    const res = await claude.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 150,
+      system: [{
+        type: 'text',
+        text:
+          'Você é o motor de matching da Bikco. Dado um pedido de serviço, liste as PROFISSÕES e ' +
+          'HABILIDADES que poderiam atendê-lo. Responda APENAS com um array JSON de termos curtos, ' +
+          'em minúsculas e SEM acento (ex.: ["encanador","hidraulica","reparos"]). Inclua sinônimos ' +
+          'e termos genéricos úteis. Máximo 8 termos. Nada além do array.',
+        cache_control: { type: 'ephemeral' },
+      }],
+      messages: [{ role: 'user', content: input }],
+    })
+    const block = res.content.find(b => b.type === 'text')
+    const raw = block && block.type === 'text' ? block.text : ''
+    const m = raw.match(/\[[\s\S]*\]/)
+    if (!m) return []
+    const arr = JSON.parse(m[0])
+    if (!Array.isArray(arr)) return []
+    return arr.map((x) => normalize(String(x))).filter((s) => s.length >= 3).slice(0, 8)
+  } catch (e) {
+    console.error('[matchDemand] expandSkills falhou:', e)
+    return []
+  }
 }
 
 /** Monta o número no formato do Z-API (ex.: 5511999998888). */
@@ -95,6 +134,19 @@ export async function matchDemand(demand: DemandRow): Promise<{ matched: number;
   const text  = normalize(`${demand.title ?? ''} ${demand.description ?? ''}`)
   const dcity = normalize((demand.location_city ?? '').split(',')[0])
 
+  // IA entende o pedido e expande para profissões/sinônimos (matching semântico)
+  const aiTerms = await expandDemandToSkills(demand.title ?? '', demand.description ?? '')
+
+  // Casa por palavra literal OU por termo expandido pela IA
+  function skillHits(skills: string[]): boolean {
+    if (skillsMatch(text, skills)) return true
+    if (!aiTerms.length) return false
+    return (skills ?? []).some(skill => {
+      const s = normalize(skill)
+      return s.length >= 3 && aiTerms.some(term => term.includes(s) || s.includes(term))
+    })
+  }
+
   const matches = (pros as unknown as ProRow[]).filter(p => {
     const u = p.users
     if (!u?.phone) return false
@@ -102,7 +154,7 @@ export async function matchDemand(demand: DemandRow): Promise<{ matched: number;
     if (demand.user_id && u.id === demand.user_id) return false // não avisa o próprio autor
     const pcity = normalize((p.location_city ?? '').split(',')[0])
     if (dcity && pcity && !pcity.includes(dcity) && !dcity.includes(pcity)) return false
-    return skillsMatch(text, p.skills ?? [])
+    return skillHits(p.skills ?? [])
   })
 
   const titulo = (demand.title || (demand.description ?? '').slice(0, 60) || 'Novo pedido').trim()
