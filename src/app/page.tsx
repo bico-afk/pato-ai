@@ -16,6 +16,7 @@ import ClosingBanner from '@/components/landing/ClosingBanner'
 import SideToggle from '@/components/landing/SideToggle'
 import BikcoChat from '@/components/landing/BikcoChat'
 import GlobeBackdrop from '@/components/landing/GlobeBackdrop'
+import ModelSection from '@/components/landing/ModelSection'
 
 export default function Home() {
   return (
@@ -78,6 +79,9 @@ function LandingInner() {
             <LiveGlobe />
           </div>
         </section>
+
+        {/* ── O MODELO: descreva uma vez → bicos no WhatsApp ───── */}
+        <ModelSection />
 
         {/* ── MUNDO + GRATUITO + ERA DA IA ─────────────────────── */}
         <WorldwideMission />

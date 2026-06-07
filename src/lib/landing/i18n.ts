@@ -87,6 +87,16 @@ const pt: Dict = {
   net_badge: 'A rede de serviços humanos', free_badge: '100% grátis',
   stats_countries: 'países alcançados',
   live_cta: 'Cadastre-se como profissional e receba chamados em tempo real do mundo todo →',
+  model_kicker: 'A rede que trabalha por você',
+  model_title: 'Descreva uma vez. Receba os bicos certos no seu WhatsApp.',
+  model_p1: 'Você diz o que sabe fazer (ou o que precisa) — e a nossa IA entende, sem formulário nem categoria.',
+  model_p2: 'Sempre que surge um bikco com a sua cara, perto de você…',
+  model_p3: '…a Bikco te chama no WhatsApp. Sem caçar trabalho: a oportunidade chega até você.',
+  model_net: 'Efeito de rede: quanto mais gente entra, mais conexões acontecem — sozinhas.',
+  model_cta: 'Cadastrar minha habilidade',
+  model_wa_title: 'Novo bico pra você!',
+  model_wa_body: 'Eletricista • Itajaí\n"Tomada não funciona, preciso resolver hoje."',
+  model_wa_link: 'Ver e aceitar',
 }
 
 const en: Dict = {
@@ -133,6 +143,16 @@ const en: Dict = {
   net_badge: 'The human services network', free_badge: '100% free',
   stats_countries: 'countries reached',
   live_cta: 'Sign up as a pro and get real-time requests from all over the world →',
+  model_kicker: 'The network that works for you',
+  model_title: 'Describe it once. Get the right gigs on your WhatsApp.',
+  model_p1: 'You say what you do (or what you need) — and our AI gets it. No forms, no categories.',
+  model_p2: 'Whenever a gig that fits you pops up near you…',
+  model_p3: '…Bikco pings you on WhatsApp. No hunting for work: the opportunity comes to you.',
+  model_net: 'Network effect: the more people join, the more connections happen — on their own.',
+  model_cta: 'Add my skill',
+  model_wa_title: 'New gig for you!',
+  model_wa_body: 'Electrician • Itajaí\n"Outlet not working, need it fixed today."',
+  model_wa_link: 'View & accept',
 }
 
 const es: Dict = {
@@ -179,6 +199,16 @@ const es: Dict = {
   net_badge: 'La red de servicios humanos', free_badge: '100% gratis',
   stats_countries: 'países alcanzados',
   live_cta: 'Regístrate como profesional y recibe pedidos en tiempo real de todo el mundo →',
+  model_kicker: 'La red que trabaja por ti',
+  model_title: 'Descríbelo una vez. Recibe los trabajos correctos en tu WhatsApp.',
+  model_p1: 'Dices lo que sabes hacer (o lo que necesitas) — y nuestra IA lo entiende. Sin formularios ni categorías.',
+  model_p2: 'Cada vez que aparece un bikco a tu medida, cerca de ti…',
+  model_p3: '…Bikco te avisa por WhatsApp. Sin buscar trabajo: la oportunidad llega a ti.',
+  model_net: 'Efecto de red: cuanta más gente entra, más conexiones ocurren — solas.',
+  model_cta: 'Registrar mi habilidad',
+  model_wa_title: '¡Nuevo trabajo para ti!',
+  model_wa_body: 'Electricista • Itajaí\n"El enchufe no funciona, necesito resolverlo hoy."',
+  model_wa_link: 'Ver y aceptar',
 }
 
 const zh: Dict = {
@@ -225,6 +255,16 @@ const zh: Dict = {
   net_badge: '人类服务网络', free_badge: '100% 免费',
   stats_countries: '覆盖国家',
   live_cta: '注册成为专业人士，实时接收来自全球的需求 →',
+  model_kicker: '为你而运转的网络',
+  model_title: '描述一次，合适的活儿就送到你的 WhatsApp。',
+  model_p1: '你说出你会做什么（或需要什么）——我们的 AI 就能理解。无需表单，无需分类。',
+  model_p2: '每当出现适合你、就在附近的 bikco……',
+  model_p3: '……Bikco 就在 WhatsApp 通知你。不用找活，机会主动找上门。',
+  model_net: '网络效应：加入的人越多，连接就越自动发生。',
+  model_cta: '登记我的技能',
+  model_wa_title: '有适合你的活儿！',
+  model_wa_body: '电工 • 伊塔雅伊\n"插座坏了，今天就要修好。"',
+  model_wa_link: '查看并接受',
 }
 
 const de: Dict = {
@@ -271,6 +311,16 @@ const de: Dict = {
   net_badge: 'Das Netzwerk menschlicher Dienste', free_badge: '100% kostenlos',
   stats_countries: 'erreichte Länder',
   live_cta: 'Registriere dich als Profi und erhalte Anfragen aus aller Welt in Echtzeit →',
+  model_kicker: 'Das Netzwerk, das für dich arbeitet',
+  model_title: 'Einmal beschreiben. Passende Jobs auf dein WhatsApp bekommen.',
+  model_p1: 'Du sagst, was du kannst (oder brauchst) — und unsere KI versteht es. Ohne Formular, ohne Kategorie.',
+  model_p2: 'Sobald ein Bikco auftaucht, das zu dir passt, in deiner Nähe…',
+  model_p3: '…meldet sich Bikco per WhatsApp. Kein Suchen: die Chance kommt zu dir.',
+  model_net: 'Netzwerkeffekt: je mehr mitmachen, desto mehr Verbindungen entstehen — von selbst.',
+  model_cta: 'Mein Können eintragen',
+  model_wa_title: 'Neuer Job für dich!',
+  model_wa_body: 'Elektriker • Itajaí\n"Steckdose geht nicht, muss heute repariert werden."',
+  model_wa_link: 'Ansehen & annehmen',
 }
 
 const fr: Dict = {
@@ -317,6 +367,16 @@ const fr: Dict = {
   net_badge: 'Le réseau de services humains', free_badge: '100% gratuit',
   stats_countries: 'pays atteints',
   live_cta: 'Inscrivez-vous comme pro et recevez des demandes en temps réel du monde entier →',
+  model_kicker: 'Le réseau qui travaille pour vous',
+  model_title: 'Décrivez-le une fois. Recevez les bons jobs sur votre WhatsApp.',
+  model_p1: 'Vous dites ce que vous savez faire (ou ce dont vous avez besoin) — et notre IA comprend. Sans formulaire ni catégorie.',
+  model_p2: 'Dès qu’un bikco fait pour vous apparaît, près de chez vous…',
+  model_p3: '…Bikco vous prévient sur WhatsApp. Sans chercher : l’opportunité vient à vous.',
+  model_net: 'Effet de réseau : plus il y a de monde, plus les connexions se font — toutes seules.',
+  model_cta: 'Enregistrer mon savoir-faire',
+  model_wa_title: 'Nouveau job pour vous !',
+  model_wa_body: 'Électricien • Itajaí\n"Prise qui ne marche pas, à réparer aujourd’hui."',
+  model_wa_link: 'Voir et accepter',
 }
 
 const it: Dict = {
@@ -363,6 +423,16 @@ const it: Dict = {
   net_badge: 'La rete dei servizi umani', free_badge: '100% gratis',
   stats_countries: 'paesi raggiunti',
   live_cta: 'Registrati come professionista e ricevi richieste in tempo reale da tutto il mondo →',
+  model_kicker: 'La rete che lavora per te',
+  model_title: 'Descrivilo una volta. Ricevi i lavori giusti sul tuo WhatsApp.',
+  model_p1: 'Dici cosa sai fare (o di cosa hai bisogno) — e la nostra IA lo capisce. Senza moduli né categorie.',
+  model_p2: 'Ogni volta che spunta un bikco su misura per te, vicino a te…',
+  model_p3: '…Bikco ti avvisa su WhatsApp. Senza cercare lavoro: l’occasione arriva da te.',
+  model_net: 'Effetto rete: più gente entra, più connessioni nascono — da sole.',
+  model_cta: 'Registra la mia abilità',
+  model_wa_title: 'Nuovo lavoro per te!',
+  model_wa_body: 'Elettricista • Itajaí\n"La presa non funziona, da sistemare oggi."',
+  model_wa_link: 'Vedi e accetta',
 }
 
 export const DICT: Record<Lang, Dict> = { pt, en, es, zh, de, fr, it }
