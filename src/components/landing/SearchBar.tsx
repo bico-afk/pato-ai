@@ -272,9 +272,9 @@ export default function SearchBar({ onSearch, loading }: Props) {
 
         {/* Submit */}
         <button type="submit" disabled={!canSubmit}
-          style={{ flexShrink: 0, height: 56, padding: '0 24px', background: canSubmit ? '#FFC53D' : '#1a1a1a', border: 'none', color: canSubmit ? '#1a1300' : '#333', fontSize: 14, fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'all 0.15s', boxShadow: canSubmit ? '0 0 20px rgba(255,197,61,0.25)' : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ flexShrink: 0, height: 56, padding: '0 24px', background: canSubmit ? '#FF6A00' : '#1a1a1a', border: 'none', color: canSubmit ? '#fff' : '#333', fontSize: 14, fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'all 0.15s', boxShadow: canSubmit ? '0 0 20px rgba(255,106,0,0.3)' : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
           {loading
-            ? <span style={{ width: 14, height: 14, border: '2px solid rgba(0,0,0,0.3)', borderTopColor: '#1a1300', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
+            ? <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'block' }} />
             : 'Publicar'}
         </button>
       </div>

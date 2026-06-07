@@ -25,7 +25,7 @@ export function useLanding(): Ctx {
 export default function LandingProvider({ children }: { children: React.ReactNode }) {
   // Idioma vem do provider GLOBAL (fonte única). Tema é local da landing.
   const { lang, setLang, t } = useLang()
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>('light')
 
   useEffect(() => {
     try {

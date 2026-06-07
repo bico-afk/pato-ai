@@ -17,6 +17,7 @@ import SideToggle from '@/components/landing/SideToggle'
 import BikcoChat from '@/components/landing/BikcoChat'
 import GlobeBackdrop from '@/components/landing/GlobeBackdrop'
 import ModelSection from '@/components/landing/ModelSection'
+import MoveSection from '@/components/landing/MoveSection'
 
 export default function Home() {
   return (
@@ -73,6 +74,16 @@ function LandingInner() {
             </p>
             <PublishBar />
             <SideToggle />
+
+            {/* Prova social */}
+            <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex' }}>
+                {['#FF6A00', '#E2541A', '#FF9D52', '#FFB37A'].map((bg, i) => (
+                  <span key={i} style={{ width: 26, height: 26, borderRadius: '50%', background: bg, border: `2px solid ${c.bg}`, marginLeft: i ? -9 : 0 }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 13, color: c.text2, fontWeight: 600 }}>{t('social_proof')}</span>
+            </div>
           </div>
 
           <div className="hero-right">
@@ -82,6 +93,9 @@ function LandingInner() {
 
         {/* ── O MODELO: descreva uma vez → bicos no WhatsApp ───── */}
         <ModelSection />
+
+        {/* ── MUDE DE CIDADE/PAÍS (o trunfo) ───────────────────── */}
+        <MoveSection />
 
         {/* ── MUNDO + GRATUITO + ERA DA IA ─────────────────────── */}
         <WorldwideMission />

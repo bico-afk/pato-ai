@@ -30,14 +30,16 @@ export interface Palette {
   text: string; text2: string; amber: string; cyan: string; ink: string
 }
 
+/* Marca Bikco: LARANJA + BRANCO. `amber` agora é o laranja da marca;
+   `cyan` é um secundário quente usado com parcimônia. `ink` = texto sobre laranja. */
 export const PALETTES: Record<Theme, Palette> = {
-  dark: {
-    bg: '#0A0A0B', bgSoft: '#101012', surface: '#141416', border: 'rgba(255,255,255,0.08)',
-    text: '#FAFAFA', text2: '#8A8A93', amber: '#FFC53D', cyan: '#2DD4BF', ink: '#1a1300',
-  },
   light: {
-    bg: '#FBFAF7', bgSoft: '#F2F0EA', surface: '#FFFFFF', border: 'rgba(0,0,0,0.09)',
-    text: '#17161B', text2: '#5E5C66', amber: '#E6A50A', cyan: '#0D9488', ink: '#1a1300',
+    bg: '#FFFFFF', bgSoft: '#FFF4EC', surface: '#FFFFFF', border: 'rgba(20,10,0,0.10)',
+    text: '#1A1410', text2: '#6E655C', amber: '#FF6A00', cyan: '#E2541A', ink: '#FFFFFF',
+  },
+  dark: {
+    bg: '#0F0B07', bgSoft: '#17110B', surface: '#1B140D', border: 'rgba(255,255,255,0.10)',
+    text: '#FFF7F0', text2: '#A99E92', amber: '#FF7A1A', cyan: '#FF9D52', ink: '#1A0E00',
   },
 }
 
@@ -48,7 +50,7 @@ const pt: Dict = {
   purpose: 'Todo mundo precisa de alguém. Todo mundo sabe fazer alguma coisa.',
   hero_title: 'O que você precisa resolver?',
   hero_sub: 'Descreva sua necessidade e publique. Profissionais de confiança da sua região encontram você — em minutos. De graça.',
-  side_resolve: 'Preciso resolver algo', side_earn: 'Quero ganhar uma renda extra',
+  side_resolve: 'Preciso de um serviço', side_earn: 'Quero prestar um serviço',
   globe_live: 'ao vivo',
   globe_title: 'Agora mesmo, pelo mundo todo, gente está resolvendo e ganhando.',
   globe_asking: 'pedindo', globe_offering: 'oferecendo', globe_drag: 'arraste para girar',
@@ -97,6 +99,11 @@ const pt: Dict = {
   model_wa_title: 'Novo bico pra você!',
   model_wa_body: 'Eletricista • Itajaí\n"Tomada não funciona, preciso resolver hoje."',
   model_wa_link: 'Ver e aceitar',
+  social_proof: 'Milhões de pessoas e empresas usam a Bikco todos os dias',
+  move_kicker: 'Sonha em mudar de cidade ou país?',
+  move_title: 'Veja onde tem trabalho pra você — antes de se mudar.',
+  move_body: 'Descreva sua habilidade e a Bikco mostra onde, no mundo, estão pedindo o que você sabe fazer. Mude com segurança, sabendo que já tem oportunidade te esperando.',
+  move_cta: 'Descobrir oportunidades',
 }
 
 const en: Dict = {
@@ -104,7 +111,7 @@ const en: Dict = {
   purpose: 'Everyone needs someone. Everyone knows how to do something.',
   hero_title: 'What do you need done?',
   hero_sub: 'Describe what you need and post it. Trusted pros near you find you — in minutes. For free.',
-  side_resolve: 'I need something done', side_earn: 'I want to earn extra income',
+  side_resolve: 'I need a service', side_earn: 'I want to offer a service',
   globe_live: 'live',
   globe_title: 'Right now, all over the world, people are getting things done and earning.',
   globe_asking: 'asking', globe_offering: 'offering', globe_drag: 'drag to spin',
@@ -153,6 +160,11 @@ const en: Dict = {
   model_wa_title: 'New gig for you!',
   model_wa_body: 'Electrician • Itajaí\n"Outlet not working, need it fixed today."',
   model_wa_link: 'View & accept',
+  social_proof: 'Millions of people and businesses use Bikco every day',
+  move_kicker: 'Dreaming of moving to another city or country?',
+  move_title: 'See where there’s work for you — before you move.',
+  move_body: 'Describe your skill and Bikco shows where, in the world, people are asking for what you do. Move with confidence, knowing opportunity is already waiting for you.',
+  move_cta: 'Discover opportunities',
 }
 
 const es: Dict = {
@@ -160,7 +172,7 @@ const es: Dict = {
   purpose: 'Todos necesitan a alguien. Todos saben hacer algo.',
   hero_title: '¿Qué necesitas resolver?',
   hero_sub: 'Describe lo que necesitas y publícalo. Profesionales de confianza cerca de ti te encuentran — en minutos. Gratis.',
-  side_resolve: 'Necesito resolver algo', side_earn: 'Quiero ganar un ingreso extra',
+  side_resolve: 'Necesito un servicio', side_earn: 'Quiero ofrecer un servicio',
   globe_live: 'en vivo',
   globe_title: 'Ahora mismo, en todo el mundo, hay gente resolviendo y ganando.',
   globe_asking: 'pidiendo', globe_offering: 'ofreciendo', globe_drag: 'arrastra para girar',
@@ -209,6 +221,11 @@ const es: Dict = {
   model_wa_title: '¡Nuevo trabajo para ti!',
   model_wa_body: 'Electricista • Itajaí\n"El enchufe no funciona, necesito resolverlo hoy."',
   model_wa_link: 'Ver y aceptar',
+  social_proof: 'Millones de personas y empresas usan Bikco todos los días',
+  move_kicker: '¿Sueñas con mudarte a otra ciudad o país?',
+  move_title: 'Mira dónde hay trabajo para ti — antes de mudarte.',
+  move_body: 'Describe tu habilidad y Bikco te muestra dónde, en el mundo, están pidiendo lo que sabes hacer. Múdate con seguridad, sabiendo que ya hay oportunidades esperándote.',
+  move_cta: 'Descubrir oportunidades',
 }
 
 const zh: Dict = {
@@ -216,7 +233,7 @@ const zh: Dict = {
   purpose: '每个人都需要别人。每个人都会做点什么。',
   hero_title: '你需要解决什么？',
   hero_sub: '描述你的需求并发布。你附近值得信赖的专业人士会在几分钟内找到你——而且免费。',
-  side_resolve: '我需要解决问题', side_earn: '我想赚点外快',
+  side_resolve: '我需要服务', side_earn: '我想提供服务',
   globe_live: '实时',
   globe_title: '此刻，全世界都有人在解决问题、在赚钱。',
   globe_asking: '需求', globe_offering: '提供', globe_drag: '拖动旋转',
@@ -265,6 +282,11 @@ const zh: Dict = {
   model_wa_title: '有适合你的活儿！',
   model_wa_body: '电工 • 伊塔雅伊\n"插座坏了，今天就要修好。"',
   model_wa_link: '查看并接受',
+  social_proof: '每天有数百万的人和企业在使用 Bikco',
+  move_kicker: '梦想搬到另一个城市或国家？',
+  move_title: '搬家之前，先看看哪里有适合你的工作。',
+  move_body: '描述你的技能，Bikco 就会告诉你世界上哪里在寻找你会做的事。带着信心搬家，知道已有机会在等你。',
+  move_cta: '发现机会',
 }
 
 const de: Dict = {
@@ -272,7 +294,7 @@ const de: Dict = {
   purpose: 'Jeder braucht jemanden. Jeder kann etwas.',
   hero_title: 'Was möchtest du erledigen?',
   hero_sub: 'Beschreibe, was du brauchst, und poste es. Vertrauenswürdige Profis in deiner Nähe finden dich — in Minuten. Kostenlos.',
-  side_resolve: 'Ich brauche etwas erledigt', side_earn: 'Ich will dazuverdienen',
+  side_resolve: 'Ich brauche eine Dienstleistung', side_earn: 'Ich möchte eine Dienstleistung anbieten',
   globe_live: 'live',
   globe_title: 'Gerade jetzt erledigen und verdienen Menschen auf der ganzen Welt.',
   globe_asking: 'sucht', globe_offering: 'bietet', globe_drag: 'zum Drehen ziehen',
@@ -321,6 +343,11 @@ const de: Dict = {
   model_wa_title: 'Neuer Job für dich!',
   model_wa_body: 'Elektriker • Itajaí\n"Steckdose geht nicht, muss heute repariert werden."',
   model_wa_link: 'Ansehen & annehmen',
+  social_proof: 'Millionen Menschen und Unternehmen nutzen Bikco jeden Tag',
+  move_kicker: 'Träumst du von einem Umzug in eine andere Stadt oder ein anderes Land?',
+  move_title: 'Sieh, wo es Arbeit für dich gibt — bevor du umziehst.',
+  move_body: 'Beschreibe dein Können und Bikco zeigt dir, wo auf der Welt nach dem gefragt wird, was du kannst. Zieh mit Sicherheit um, weil schon eine Chance auf dich wartet.',
+  move_cta: 'Chancen entdecken',
 }
 
 const fr: Dict = {
@@ -328,7 +355,7 @@ const fr: Dict = {
   purpose: 'Tout le monde a besoin de quelqu’un. Tout le monde sait faire quelque chose.',
   hero_title: 'Qu’avez-vous besoin de régler ?',
   hero_sub: 'Décrivez votre besoin et publiez. Des pros de confiance près de chez vous vous trouvent — en quelques minutes. Gratuitement.',
-  side_resolve: 'J’ai besoin de régler quelque chose', side_earn: 'Je veux un revenu en plus',
+  side_resolve: 'J’ai besoin d’un service', side_earn: 'Je veux offrir un service',
   globe_live: 'en direct',
   globe_title: 'En ce moment, partout dans le monde, des gens règlent et gagnent.',
   globe_asking: 'demande', globe_offering: 'propose', globe_drag: 'glissez pour tourner',
@@ -377,6 +404,11 @@ const fr: Dict = {
   model_wa_title: 'Nouveau job pour vous !',
   model_wa_body: 'Électricien • Itajaí\n"Prise qui ne marche pas, à réparer aujourd’hui."',
   model_wa_link: 'Voir et accepter',
+  social_proof: 'Des millions de personnes et d’entreprises utilisent Bikco chaque jour',
+  move_kicker: 'Vous rêvez de déménager dans une autre ville ou un autre pays ?',
+  move_title: 'Voyez où il y a du travail pour vous — avant de déménager.',
+  move_body: 'Décrivez votre savoir-faire et Bikco vous montre où, dans le monde, on demande ce que vous savez faire. Déménagez en confiance, en sachant qu’une opportunité vous attend déjà.',
+  move_cta: 'Découvrir les opportunités',
 }
 
 const it: Dict = {
@@ -384,7 +416,7 @@ const it: Dict = {
   purpose: 'Tutti hanno bisogno di qualcuno. Tutti sanno fare qualcosa.',
   hero_title: 'Cosa hai bisogno di risolvere?',
   hero_sub: 'Descrivi ciò di cui hai bisogno e pubblicalo. Professionisti affidabili vicino a te ti trovano — in pochi minuti. Gratis.',
-  side_resolve: 'Devo risolvere qualcosa', side_earn: 'Voglio un’entrata extra',
+  side_resolve: 'Ho bisogno di un servizio', side_earn: 'Voglio offrire un servizio',
   globe_live: 'in diretta',
   globe_title: 'Proprio ora, in tutto il mondo, c’è gente che risolve e guadagna.',
   globe_asking: 'chiede', globe_offering: 'offre', globe_drag: 'trascina per ruotare',
@@ -433,6 +465,11 @@ const it: Dict = {
   model_wa_title: 'Nuovo lavoro per te!',
   model_wa_body: 'Elettricista • Itajaí\n"La presa non funziona, da sistemare oggi."',
   model_wa_link: 'Vedi e accetta',
+  social_proof: 'Milioni di persone e aziende usano Bikco ogni giorno',
+  move_kicker: 'Sogni di trasferirti in un’altra città o paese?',
+  move_title: 'Scopri dove c’è lavoro per te — prima di trasferirti.',
+  move_body: 'Descrivi la tua abilità e Bikco ti mostra dove, nel mondo, cercano ciò che sai fare. Trasferisciti con sicurezza, sapendo che un’opportunità ti aspetta già.',
+  move_cta: 'Scopri le opportunità',
 }
 
 export const DICT: Record<Lang, Dict> = { pt, en, es, zh, de, fr, it }
