@@ -278,6 +278,11 @@ export default function PedidoPage() {
       }
       void inserted
       setApplied(true); setShowApply(false)
+      // Avisa o dono do pedido pelo WhatsApp (se ele tiver telefone) — fire-and-forget
+      fetch('/api/notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'applied', demandId: id, professionalId: authUserId }),
+      }).catch(() => {})
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erro ao candidatar'
       setApplyError(msg === 'timeout' ? 'Demorou demais. Tente de novo.' : msg)
@@ -306,6 +311,12 @@ export default function PedidoPage() {
           status:          'active',
         }).select('id').single()
       if (chatErr || !chat) throw chatErr ?? new Error('Chat não criado')
+
+      // Avisa o profissional escolhido pelo WhatsApp — fire-and-forget
+      fetch('/api/notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'accepted', demandId: id, professionalId: app.professional_id }),
+      }).catch(() => {})
 
       // 3. Navigate
       router.push(`/chat/${(chat as { id: string }).id}`)
