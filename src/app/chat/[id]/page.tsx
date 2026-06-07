@@ -96,6 +96,29 @@ export default function ChatPage() {
   const [status,     setStatus]     = useState<'loading' | 'error' | 'ok'>('loading')
   const [closing,    setClosing]    = useState(false)
 
+  // Avaliação
+  const [showRate,   setShowRate]   = useState(false)
+  const [rateValue,  setRateValue]  = useState(0)
+  const [rateHover,  setRateHover]  = useState(0)
+  const [rateComment,setRateComment]= useState('')
+  const [rating,     setRating]     = useState(false)
+  const [rated,      setRated]      = useState(false)
+
+  async function submitReview() {
+    if (rateValue < 1) return
+    setRating(true)
+    try {
+      const res = await fetch('/api/review', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, rating: rateValue, comment: rateComment.trim() || undefined }),
+      })
+      const json = await res.json()
+      if (!json.ok) throw new Error(json.error ?? 'erro')
+      setRated(true); setShowRate(false)
+    } catch (e) { console.error('[chat] review', e) }
+    finally { setRating(false) }
+  }
+
   const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const channelRef  = useRef<RealtimeChannel | null>(null)
@@ -280,6 +303,14 @@ export default function ChatPage() {
           {demandDesc && <p style={{ fontSize: 11, color: '#444', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{demandDesc}</p>}
         </div>
 
+        {/* Avaliar (sempre disponível quando há outra pessoa) */}
+        {other && (
+          <button onClick={() => setShowRate(true)} disabled={rated} title="Avaliar"
+            style={{ height: 32, padding: '0 11px', borderRadius: 8, border: `1px solid ${rated ? 'rgba(245,158,11,0.4)' : '#333'}`, background: rated ? 'rgba(245,158,11,0.08)' : 'none', color: rated ? '#f59e0b' : '#888', fontSize: 12, fontWeight: 700, cursor: rated ? 'default' : 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+            ⭐ {rated ? 'Avaliado' : 'Avaliar'}
+          </button>
+        )}
+
         {chat?.status === 'closed' ? (
           <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, background: 'rgba(107,114,128,0.08)', border: '1px solid rgba(107,114,128,0.2)', borderRadius: 99, padding: '3px 10px', flexShrink: 0 }}>
             Encerrado
@@ -346,6 +377,38 @@ export default function ChatPage() {
                 : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={newMsg.trim() ? '#000' : '#444'} strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               }
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de avaliação */}
+      {showRate && (
+        <div onClick={e => { if (e.target === e.currentTarget) setShowRate(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 999 }}>
+          <div style={{ width: '100%', maxWidth: 380, background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 16, padding: '28px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>Avaliar {other?.full_name ?? other?.username}</p>
+            <p style={{ fontSize: 13, color: '#666', margin: '0 0 18px' }}>Como foi o atendimento?</p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 18 }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <button key={n} type="button"
+                  onMouseEnter={() => setRateHover(n)} onMouseLeave={() => setRateHover(0)}
+                  onClick={() => setRateValue(n)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 34, lineHeight: 1, padding: 2, color: (rateHover || rateValue) >= n ? '#f59e0b' : '#333', transition: 'color 0.1s' }}>
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <textarea value={rateComment} onChange={e => setRateComment(e.target.value)} rows={3}
+              placeholder="Deixe um comentário (opcional)…"
+              style={{ width: '100%', background: '#111', border: '1px solid #333', borderRadius: 8, color: '#fff', fontSize: 14, padding: '10px 12px', outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 14 }} />
+
+            <button onClick={submitReview} disabled={rateValue < 1 || rating}
+              style={{ width: '100%', height: 48, borderRadius: 10, border: 'none', background: rateValue >= 1 && !rating ? '#f59e0b' : '#1a1a1a', color: rateValue >= 1 && !rating ? '#1a1300' : '#444', fontSize: 15, fontWeight: 800, cursor: rateValue >= 1 && !rating ? 'pointer' : 'not-allowed' }}>
+              {rating ? 'Enviando…' : 'Enviar avaliação'}
+            </button>
+            <button onClick={() => setShowRate(false)} style={{ marginTop: 10, background: 'none', border: 'none', color: '#666', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Agora não</button>
           </div>
         </div>
       )}
