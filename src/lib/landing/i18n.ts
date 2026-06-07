@@ -48,8 +48,8 @@ type Dict = Record<string, string>
 const pt: Dict = {
   nav_feed: 'Feed', nav_publish: 'Publicar pedido', nav_login: 'Entrar',
   purpose: 'Todo mundo precisa de alguém. Todo mundo sabe fazer alguma coisa.',
-  hero_title: 'O que você precisa resolver?',
-  hero_sub: 'Descreva sua necessidade e publique. Profissionais de confiança da sua região encontram você — em minutos. De graça.',
+  hero_title: 'Conecte suas habilidades a quem precisa.',
+  hero_sub: 'A rede viva da Bikco te avisa no WhatsApp quando surge um bikco com a sua cara. Precisa de algo? A pessoa certa aparece — de graça.',
   side_resolve: 'Preciso de um serviço', side_earn: 'Quero prestar um serviço',
   globe_live: 'ao vivo',
   globe_title: 'Agora mesmo, pelo mundo todo, gente está resolvendo e ganhando.',
@@ -104,13 +104,17 @@ const pt: Dict = {
   move_title: 'Veja onde tem trabalho pra você — antes de se mudar.',
   move_body: 'Descreva sua habilidade e a Bikco mostra onde, no mundo, estão pedindo o que você sabe fazer. Mude com segurança, sabendo que já tem oportunidade te esperando.',
   move_cta: 'Descobrir oportunidades',
+  cat_intro: 'Tem de tudo na Bikco',
+  cat_cleaning: 'Faxina', cat_electrician: 'Eletricista', cat_plumber: 'Encanador', cat_moving: 'Frete',
+  cat_painting: 'Pintura', cat_assembly: 'Montagem', cat_lessons: 'Aulas', cat_gardening: 'Jardinagem',
+  cat_beauty: 'Beleza', cat_tech: 'Informática',
 }
 
 const en: Dict = {
   nav_feed: 'Feed', nav_publish: 'Post a request', nav_login: 'Sign in',
   purpose: 'Everyone needs someone. Everyone knows how to do something.',
-  hero_title: 'What do you need done?',
-  hero_sub: 'Describe what you need and post it. Trusted pros near you find you — in minutes. For free.',
+  hero_title: 'Connect your skills to those who need them.',
+  hero_sub: 'Bikco’s living network pings you on WhatsApp whenever a gig that fits you appears. Need something? The right person shows up — for free.',
   side_resolve: 'I need a service', side_earn: 'I want to offer a service',
   globe_live: 'live',
   globe_title: 'Right now, all over the world, people are getting things done and earning.',
@@ -165,13 +169,17 @@ const en: Dict = {
   move_title: 'See where there’s work for you — before you move.',
   move_body: 'Describe your skill and Bikco shows where, in the world, people are asking for what you do. Move with confidence, knowing opportunity is already waiting for you.',
   move_cta: 'Discover opportunities',
+  cat_intro: 'Anything gets done on Bikco',
+  cat_cleaning: 'Cleaning', cat_electrician: 'Electrician', cat_plumber: 'Plumber', cat_moving: 'Moving',
+  cat_painting: 'Painting', cat_assembly: 'Assembly', cat_lessons: 'Lessons', cat_gardening: 'Gardening',
+  cat_beauty: 'Beauty', cat_tech: 'Tech help',
 }
 
 const es: Dict = {
   nav_feed: 'Feed', nav_publish: 'Publicar pedido', nav_login: 'Entrar',
   purpose: 'Todos necesitan a alguien. Todos saben hacer algo.',
-  hero_title: '¿Qué necesitas resolver?',
-  hero_sub: 'Describe lo que necesitas y publícalo. Profesionales de confianza cerca de ti te encuentran — en minutos. Gratis.',
+  hero_title: 'Conecta tus habilidades con quien las necesita.',
+  hero_sub: 'La red viva de Bikco te avisa por WhatsApp cuando aparece un bikco a tu medida. ¿Necesitas algo? La persona correcta aparece — gratis.',
   side_resolve: 'Necesito un servicio', side_earn: 'Quiero ofrecer un servicio',
   globe_live: 'en vivo',
   globe_title: 'Ahora mismo, en todo el mundo, hay gente resolviendo y ganando.',
@@ -226,13 +234,17 @@ const es: Dict = {
   move_title: 'Mira dónde hay trabajo para ti — antes de mudarte.',
   move_body: 'Describe tu habilidad y Bikco te muestra dónde, en el mundo, están pidiendo lo que sabes hacer. Múdate con seguridad, sabiendo que ya hay oportunidades esperándote.',
   move_cta: 'Descubrir oportunidades',
+  cat_intro: 'En Bikco se hace de todo',
+  cat_cleaning: 'Limpieza', cat_electrician: 'Electricista', cat_plumber: 'Plomero', cat_moving: 'Mudanzas',
+  cat_painting: 'Pintura', cat_assembly: 'Montaje', cat_lessons: 'Clases', cat_gardening: 'Jardinería',
+  cat_beauty: 'Belleza', cat_tech: 'Informática',
 }
 
 const zh: Dict = {
   nav_feed: '动态', nav_publish: '发布需求', nav_login: '登录',
   purpose: '每个人都需要别人。每个人都会做点什么。',
-  hero_title: '你需要解决什么？',
-  hero_sub: '描述你的需求并发布。你附近值得信赖的专业人士会在几分钟内找到你——而且免费。',
+  hero_title: '把你的技能连接给需要的人。',
+  hero_sub: '只要出现适合你的活儿，Bikco 的活跃网络就会通过 WhatsApp 通知你。需要帮忙？合适的人会出现——而且免费。',
   side_resolve: '我需要服务', side_earn: '我想提供服务',
   globe_live: '实时',
   globe_title: '此刻，全世界都有人在解决问题、在赚钱。',
@@ -287,13 +299,17 @@ const zh: Dict = {
   move_title: '搬家之前，先看看哪里有适合你的工作。',
   move_body: '描述你的技能，Bikco 就会告诉你世界上哪里在寻找你会做的事。带着信心搬家，知道已有机会在等你。',
   move_cta: '发现机会',
+  cat_intro: 'Bikco 上什么都能办',
+  cat_cleaning: '保洁', cat_electrician: '电工', cat_plumber: '水管工', cat_moving: '搬运',
+  cat_painting: '油漆', cat_assembly: '安装', cat_lessons: '课程', cat_gardening: '园艺',
+  cat_beauty: '美容', cat_tech: '电脑维修',
 }
 
 const de: Dict = {
   nav_feed: 'Feed', nav_publish: 'Auftrag posten', nav_login: 'Anmelden',
   purpose: 'Jeder braucht jemanden. Jeder kann etwas.',
-  hero_title: 'Was möchtest du erledigen?',
-  hero_sub: 'Beschreibe, was du brauchst, und poste es. Vertrauenswürdige Profis in deiner Nähe finden dich — in Minuten. Kostenlos.',
+  hero_title: 'Verbinde dein Können mit denen, die es brauchen.',
+  hero_sub: 'Bikcos lebendiges Netzwerk meldet sich per WhatsApp, sobald ein passender Job auftaucht. Brauchst du etwas? Die richtige Person erscheint — kostenlos.',
   side_resolve: 'Ich brauche eine Dienstleistung', side_earn: 'Ich möchte eine Dienstleistung anbieten',
   globe_live: 'live',
   globe_title: 'Gerade jetzt erledigen und verdienen Menschen auf der ganzen Welt.',
@@ -348,13 +364,17 @@ const de: Dict = {
   move_title: 'Sieh, wo es Arbeit für dich gibt — bevor du umziehst.',
   move_body: 'Beschreibe dein Können und Bikco zeigt dir, wo auf der Welt nach dem gefragt wird, was du kannst. Zieh mit Sicherheit um, weil schon eine Chance auf dich wartet.',
   move_cta: 'Chancen entdecken',
+  cat_intro: 'Auf Bikco wird alles erledigt',
+  cat_cleaning: 'Reinigung', cat_electrician: 'Elektriker', cat_plumber: 'Klempner', cat_moving: 'Transport',
+  cat_painting: 'Malen', cat_assembly: 'Montage', cat_lessons: 'Unterricht', cat_gardening: 'Garten',
+  cat_beauty: 'Beauty', cat_tech: 'IT-Hilfe',
 }
 
 const fr: Dict = {
   nav_feed: 'Fil', nav_publish: 'Publier une demande', nav_login: 'Se connecter',
   purpose: 'Tout le monde a besoin de quelqu’un. Tout le monde sait faire quelque chose.',
-  hero_title: 'Qu’avez-vous besoin de régler ?',
-  hero_sub: 'Décrivez votre besoin et publiez. Des pros de confiance près de chez vous vous trouvent — en quelques minutes. Gratuitement.',
+  hero_title: 'Connectez vos compétences à ceux qui en ont besoin.',
+  hero_sub: 'Le réseau vivant de Bikco vous prévient sur WhatsApp dès qu’un job vous correspond. Besoin de quelque chose ? La bonne personne arrive — gratuitement.',
   side_resolve: 'J’ai besoin d’un service', side_earn: 'Je veux offrir un service',
   globe_live: 'en direct',
   globe_title: 'En ce moment, partout dans le monde, des gens règlent et gagnent.',
@@ -409,13 +429,17 @@ const fr: Dict = {
   move_title: 'Voyez où il y a du travail pour vous — avant de déménager.',
   move_body: 'Décrivez votre savoir-faire et Bikco vous montre où, dans le monde, on demande ce que vous savez faire. Déménagez en confiance, en sachant qu’une opportunité vous attend déjà.',
   move_cta: 'Découvrir les opportunités',
+  cat_intro: 'Sur Bikco, tout se fait',
+  cat_cleaning: 'Ménage', cat_electrician: 'Électricien', cat_plumber: 'Plombier', cat_moving: 'Déménagement',
+  cat_painting: 'Peinture', cat_assembly: 'Montage', cat_lessons: 'Cours', cat_gardening: 'Jardinage',
+  cat_beauty: 'Beauté', cat_tech: 'Aide info',
 }
 
 const it: Dict = {
   nav_feed: 'Feed', nav_publish: 'Pubblica richiesta', nav_login: 'Accedi',
   purpose: 'Tutti hanno bisogno di qualcuno. Tutti sanno fare qualcosa.',
-  hero_title: 'Cosa hai bisogno di risolvere?',
-  hero_sub: 'Descrivi ciò di cui hai bisogno e pubblicalo. Professionisti affidabili vicino a te ti trovano — in pochi minuti. Gratis.',
+  hero_title: 'Collega le tue abilità a chi ne ha bisogno.',
+  hero_sub: 'La rete viva di Bikco ti avvisa su WhatsApp quando spunta un lavoro su misura per te. Hai bisogno di qualcosa? La persona giusta arriva — gratis.',
   side_resolve: 'Ho bisogno di un servizio', side_earn: 'Voglio offrire un servizio',
   globe_live: 'in diretta',
   globe_title: 'Proprio ora, in tutto il mondo, c’è gente che risolve e guadagna.',
@@ -470,6 +494,10 @@ const it: Dict = {
   move_title: 'Scopri dove c’è lavoro per te — prima di trasferirti.',
   move_body: 'Descrivi la tua abilità e Bikco ti mostra dove, nel mondo, cercano ciò che sai fare. Trasferisciti con sicurezza, sapendo che un’opportunità ti aspetta già.',
   move_cta: 'Scopri le opportunità',
+  cat_intro: 'Su Bikco si fa di tutto',
+  cat_cleaning: 'Pulizie', cat_electrician: 'Elettricista', cat_plumber: 'Idraulico', cat_moving: 'Trasloco',
+  cat_painting: 'Pittura', cat_assembly: 'Montaggio', cat_lessons: 'Lezioni', cat_gardening: 'Giardinaggio',
+  cat_beauty: 'Bellezza', cat_tech: 'Aiuto PC',
 }
 
 export const DICT: Record<Lang, Dict> = { pt, en, es, zh, de, fr, it }

@@ -18,6 +18,7 @@ import BikcoChat from '@/components/landing/BikcoChat'
 import GlobeBackdrop from '@/components/landing/GlobeBackdrop'
 import ModelSection from '@/components/landing/ModelSection'
 import MoveSection from '@/components/landing/MoveSection'
+import CategoryChips from '@/components/landing/CategoryChips'
 
 export default function Home() {
   return (
@@ -90,6 +91,9 @@ function LandingInner() {
             <LiveGlobe />
           </div>
         </section>
+
+        {/* ── Categorias (estilo Airtasker) ────────────────────── */}
+        <CategoryChips />
 
         {/* ── O MODELO: descreva uma vez → bicos no WhatsApp ───── */}
         <ModelSection />
