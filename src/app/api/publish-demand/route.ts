@@ -92,22 +92,6 @@ export async function POST(req: NextRequest) {
     ...(userId ? { user_id: userId } : { anonymous_token: anonToken }),
   }
 
-  // DIAGNÓSTICO temporário: fetch CRU ao Supabase, capturando a causa real.
-  let _readOk = false, _readErr: string | null = null, _cause: string | null = null
-  try {
-    const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-    const rawKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
-    const rf = await fetch(`${rawUrl}/rest/v1/demands?select=id&limit=1`, {
-      headers: { apikey: rawKey, Authorization: `Bearer ${rawKey}` },
-    })
-    _readOk = rf.ok
-    _readErr = rf.ok ? null : `HTTP ${rf.status}`
-  } catch (e) {
-    const err = e as { message?: string; cause?: unknown }
-    _readErr = 'throw:' + (err.message ?? String(e))
-    _cause = err.cause ? JSON.stringify(err.cause, Object.getOwnPropertyNames(err.cause as object)).slice(0, 300) : null
-  }
-
   let { data, error } = await db.from('demands').insert(row).select('id').maybeSingle()
 
   // Fallback defensivo: a coluna anonymous_token tem (historicamente) restrição
@@ -126,20 +110,7 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     console.error('[publish-demand] insert error:', error.code, error.message, error.details, error.hint)
-    return NextResponse.json({
-      ok: false,
-      error: error.message ?? 'db_error',
-      _debug: {
-        code: error.code ?? null,
-        details: error.details ?? null,
-        hint: error.hint ?? null,
-        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-        urlHost: (() => { try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).host } catch { return null } })(),
-        readOk: _readOk,
-        readErr: _readErr,
-        cause: _cause,
-      },
-    }, { status: 400 })
+    return NextResponse.json({ ok: false, error: error.message ?? 'db_error' }, { status: 400 })
   }
 
   const id = (data as { id: string } | null)?.id ?? null
