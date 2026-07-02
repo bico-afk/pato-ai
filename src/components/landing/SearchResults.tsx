@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createPublicClient } from '@/lib/supabase/public'
-import { createClient } from '@/lib/supabase/client'
 import { getAnonToken } from '@/lib/anonymous'
-import { useAuth } from '@/hooks/useAuth'
 import type { SearchResult } from '@/hooks/useSearch'
 import type { LocationData } from '@/lib/geo'
 
@@ -120,11 +117,6 @@ interface Props {
 export default function SearchResults({ results, loading, error, searched, query, title, location, mediaUrls }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
-  const { profile } = useAuth() // logged-in user (if any) → attribute the demand to them
-  const supabaseRef = useRef(createPublicClient())
-  const supabase    = supabaseRef.current
-  const sessionRef  = useRef(createClient())   // session client — needed to insert with user_id
-  const sessionClient = sessionRef.current
 
   // Auto-publish state — when a search returns no professionals, the query
   // becomes a published demand. The user is NEVER told there's scarcity.
@@ -177,40 +169,32 @@ export default function SearchResults({ results, loading, error, searched, query
       }
 
       try {
-        let data: { id: string } | null = null
-
-        if (profile?.id) {
-          // Logged in: insert via the SESSION client so RLS lets us set user_id.
-          // The demand is owned by the account → reliable ownership, can't self-apply.
-          const r = await withTimeout(
-            sessionClient.from('demands')
-              .insert({ ...base, user_id: profile.id })
-              .select('id').maybeSingle(),
-            10_000,
-          ) as { data: { id: string } | null; error: { message?: string } | null }
-          if (r.error) throw r.error
-          data = r.data
-        } else {
-          // Anonymous: insert via the public (anon) client with the browser token.
-          const r = await supabase.from('demands')
-            .insert({ ...base, anonymous_token: getAnonToken() })
-            .select('id').maybeSingle() as { data: { id: string } | null; error: { message?: string } | null }
-          if (r.error) throw r.error
-          data = r.data
-        }
+        // Publica SEMPRE via rota de servidor (service role). Isso evita o
+        // deadlock do session-client no navegador e qualquer trava de RLS.
+        // A rota identifica o usuário logado pelo cookie; se anônimo, usa o token.
+        const resp = await withTimeout(
+          fetch('/api/publish-demand', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title:            base.title,
+              description:      base.description,
+              location_city:    base.location_city,
+              location_state:   base.location_state,
+              location_country: base.location_country,
+              location_point:   base.location_point,
+              media_urls:       base.media_urls,
+              language:         base.language,
+              anonymous_token:  getAnonToken(),
+            }),
+          }),
+          15_000,
+        )
+        const json = await resp.json().catch(() => ({})) as { ok?: boolean; id?: string; error?: string }
+        if (!resp.ok || !json.ok) throw new Error(json.error || `HTTP ${resp.status}`)
 
         setPublishError(null)
-        setPublishedId(data?.id ?? '')
-
-        // Dispara o matching → WhatsApp automático aos profissionais compatíveis.
-        // Fire-and-forget: não bloqueia a UI. (Backup ao Supabase DB Webhook.)
-        if (data?.id) {
-          fetch('/api/notify-match', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-internal': '1' },
-            body: JSON.stringify({ demandId: data.id }),
-          }).catch(() => { /* não-fatal */ })
-        }
+        setPublishedId(json.id ?? '')
 
         // Assim que publica, vai direto para o feed (junto das outras demandas).
         router.push('/feed')
