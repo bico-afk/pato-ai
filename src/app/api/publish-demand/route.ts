@@ -25,8 +25,8 @@ interface Body {
 
 function admin() {
   return createAdmin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim(),
+    (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim(),
     { auth: { persistSession: false, autoRefreshToken: false } },
   )
 }
@@ -92,13 +92,21 @@ export async function POST(req: NextRequest) {
     ...(userId ? { user_id: userId } : { anonymous_token: anonToken }),
   }
 
-  // DIAGNÓSTICO temporário: a leitura com o MESMO client admin funciona?
-  let _readOk = false, _readErr: string | null = null
+  // DIAGNÓSTICO temporário: fetch CRU ao Supabase, capturando a causa real.
+  let _readOk = false, _readErr: string | null = null, _cause: string | null = null
   try {
-    const rd = await db.from('demands').select('id').limit(1)
-    _readOk = !rd.error
-    _readErr = rd.error ? (rd.error.message ?? 'err') : null
-  } catch (e) { _readErr = 'throw:' + String(e) }
+    const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
+    const rawKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+    const rf = await fetch(`${rawUrl}/rest/v1/demands?select=id&limit=1`, {
+      headers: { apikey: rawKey, Authorization: `Bearer ${rawKey}` },
+    })
+    _readOk = rf.ok
+    _readErr = rf.ok ? null : `HTTP ${rf.status}`
+  } catch (e) {
+    const err = e as { message?: string; cause?: unknown }
+    _readErr = 'throw:' + (err.message ?? String(e))
+    _cause = err.cause ? JSON.stringify(err.cause, Object.getOwnPropertyNames(err.cause as object)).slice(0, 300) : null
+  }
 
   let { data, error } = await db.from('demands').insert(row).select('id').maybeSingle()
 
@@ -129,6 +137,7 @@ export async function POST(req: NextRequest) {
         urlHost: (() => { try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).host } catch { return null } })(),
         readOk: _readOk,
         readErr: _readErr,
+        cause: _cause,
       },
     }, { status: 400 })
   }
