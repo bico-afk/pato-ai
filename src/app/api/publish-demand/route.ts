@@ -92,6 +92,14 @@ export async function POST(req: NextRequest) {
     ...(userId ? { user_id: userId } : { anonymous_token: anonToken }),
   }
 
+  // DIAGNÓSTICO temporário: a leitura com o MESMO client admin funciona?
+  let _readOk = false, _readErr: string | null = null
+  try {
+    const rd = await db.from('demands').select('id').limit(1)
+    _readOk = !rd.error
+    _readErr = rd.error ? (rd.error.message ?? 'err') : null
+  } catch (e) { _readErr = 'throw:' + String(e) }
+
   let { data, error } = await db.from('demands').insert(row).select('id').maybeSingle()
 
   // Fallback defensivo: a coluna anonymous_token tem (historicamente) restrição
@@ -119,6 +127,8 @@ export async function POST(req: NextRequest) {
         hint: error.hint ?? null,
         hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
         urlHost: (() => { try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).host } catch { return null } })(),
+        readOk: _readOk,
+        readErr: _readErr,
       },
     }, { status: 400 })
   }
