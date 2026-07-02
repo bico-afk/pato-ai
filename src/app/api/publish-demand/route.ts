@@ -109,8 +109,18 @@ export async function POST(req: NextRequest) {
   }
 
   if (error) {
-    console.error('[publish-demand] insert error:', error.code, error.message)
-    return NextResponse.json({ ok: false, error: error.message ?? 'db_error' }, { status: 400 })
+    console.error('[publish-demand] insert error:', error.code, error.message, error.details, error.hint)
+    return NextResponse.json({
+      ok: false,
+      error: error.message ?? 'db_error',
+      _debug: {
+        code: error.code ?? null,
+        details: error.details ?? null,
+        hint: error.hint ?? null,
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        urlHost: (() => { try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).host } catch { return null } })(),
+      },
+    }, { status: 400 })
   }
 
   const id = (data as { id: string } | null)?.id ?? null
